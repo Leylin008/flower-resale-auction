@@ -161,10 +161,12 @@ def handler(event: dict, context) -> dict:
             if banner_addon:
                 total += calc_price(BANNER_ADDON_PRICE, months)
 
+            banner_sql = "TRUE" if banner_addon else "FALSE"
+
             with conn.cursor() as cur:
                 # Проверяем баланс если нужно списать
                 if deduct_balance:
-                    cur.execute(f"SELECT balance FROM {SCHEMA}.users WHERE id = %s", (target_user_id,))
+                    cur.execute(f"SELECT balance FROM {SCHEMA}.users WHERE id = {target_user_id}")
                     row = cur.fetchone()
                     if not row:
                         return {"statusCode": 404, "headers": CORS, "body": json.dumps({"error": "Пользователь не найден"})}
@@ -173,25 +175,34 @@ def handler(event: dict, context) -> dict:
                         return {"statusCode": 400, "headers": CORS, "body": json.dumps({
                             "error": f"Недостаточно средств. Нужно {total} ₽, на балансе {current_balance:.2f} ₽"
                         })}
-                    # Списываем с баланса
                     cur.execute(
-                        f"UPDATE {SCHEMA}.users SET balance = balance - %s WHERE id = %s",
-                        (total, target_user_id)
+                        f"UPDATE {SCHEMA}.users SET balance = balance - {total} WHERE id = {target_user_id}"
                     )
-                    # Записываем доход платформы
                     cur.execute(
-                        f"INSERT INTO {SCHEMA}.platform_earnings (order_id, amount) VALUES (0, %s)",
-                        (total,)
+                        f"INSERT INTO {SCHEMA}.platform_earnings (order_id, amount) VALUES (0, {total})"
                     )
 
                 # Активируем подписку
                 cur.execute(
                     f"INSERT INTO {SCHEMA}.shop_subscriptions (user_id, plan, status, expires_at, banner_addon) "
-                    f"VALUES (%s, %s, 'active', NOW() + INTERVAL '{months} months', %s) "
-                    f"ON CONFLICT (user_id) DO UPDATE SET plan = EXCLUDED.plan, status = 'active', "
-                    f"expires_at = NOW() + INTERVAL '{months} months', banner_addon = EXCLUDED.banner_addon",
-                    (target_user_id, plan, banner_addon)
+                    f"VALUES ({target_user_id}, 'basic', 'active', NOW() + INTERVAL '{months} months', {banner_sql}) "
+                    f"ON CONFLICT (user_id) DO UPDATE SET plan = 'basic', status = 'active', "
+                    f"expires_at = NOW() + INTERVAL '{months} months', banner_addon = {banner_sql}"
                 )
+
+                # Уведомление пользователю
+                banner_text = " + рекламные баннеры" if banner_addon else ""
+                notif_title = "🏪 Подписка магазина активирована!"
+                notif_body_text = f"Ваш магазин открыт на {months} мес.{banner_text}. Оформите профиль и начните продавать."
+                if deduct_balance:
+                    notif_body_text += f" Списано {total:,} ₽.".replace(",", " ")
+                notif_title_safe = notif_title.replace("'", "''")
+                notif_body_safe = notif_body_text.replace("'", "''")
+                cur.execute(
+                    f"INSERT INTO {SCHEMA}.notifications (user_id, type, title, body) "
+                    f"VALUES ({target_user_id}, 'shop', '{notif_title_safe}', '{notif_body_safe}')"
+                )
+
             conn.commit()
             return {"statusCode": 200, "headers": CORS, "body": json.dumps({
                 "ok": True,
