@@ -1,0 +1,1 @@
+UPDATE t_p84229990_flower_resale_auctio.users SET email_verified = TRUE WHERE phone = '+79969217852';
