@@ -1,0 +1,18 @@
+{
+  "tests": [
+    {
+      "name": "Get shop list",
+      "method": "GET",
+      "path": "/?action=list",
+      "expectedStatus": 200,
+      "bodyMatcher": "partial"
+    },
+    {
+      "name": "My status unauthorized",
+      "method": "GET",
+      "path": "/?action=my_status",
+      "expectedStatus": 401,
+      "bodyMatcher": "partial"
+    }
+  ]
+}

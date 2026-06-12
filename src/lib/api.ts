@@ -9,6 +9,8 @@ const URLS = {
   cities: "https://functions.poehali.dev/926ae37d-af28-4725-9ea2-1fb3bad5cefc",
   admin: "https://functions.poehali.dev/a5f90f0f-a62a-4230-ba88-9bc4c17060ff",
   payment: "https://functions.poehali.dev/87035cc4-779f-49b8-a18c-1ed92268c9e4",
+  shops: "https://functions.poehali.dev/4e696c75-7ccd-435f-bcad-c1cc0b4ac528",
+  banners: "https://functions.poehali.dev/7efb814d-6696-46cc-99c4-b9eb27ac3f11",
 };
 
 export async function fetchAllCities(): Promise<string[]> {
@@ -106,14 +108,47 @@ export const bouquetsApi = {
     freshness: string; image_urls: string[];
     start_price: number; duration_hours: number;
     city?: string; district?: string; meet_point?: string;
+    sale_type?: string; fixed_price?: number; reserve_enabled?: boolean;
   }) => req(`${URLS.bouquets}/?action=create`, { method: "POST", body: JSON.stringify({ action: "create", ...data }) }),
   bid: (bouquet_id: number, amount: number) =>
     req(`${URLS.bouquets}/?action=bid`, { method: "POST", body: JSON.stringify({ action: "bid", bouquet_id, amount }) }),
+  buyFixed: (bouquet_id: number) =>
+    req(`${URLS.bouquets}/?action=buy_fixed`, { method: "POST", body: JSON.stringify({ action: "buy_fixed", bouquet_id }) }),
+  reserve: (bouquet_id: number, hours?: number) =>
+    req(`${URLS.bouquets}/?action=reserve`, { method: "POST", body: JSON.stringify({ action: "reserve", bouquet_id, hours: hours || 24 }) }),
+  cancelReserve: (bouquet_id: number) =>
+    req(`${URLS.bouquets}/?action=cancel_reserve`, { method: "POST", body: JSON.stringify({ action: "cancel_reserve", bouquet_id }) }),
   favorite: (bouquet_id: number, add: boolean) =>
     req(`${URLS.bouquets}/?action=favorite`, { method: "POST", body: JSON.stringify({ action: "favorite", bouquet_id, add }) }),
   favorites: () => req(`${URLS.bouquets}/?action=favorites`),
   cancel: (bouquet_id: number) =>
     req(`${URLS.bouquets}/?action=cancel`, { method: "POST", body: JSON.stringify({ action: "cancel", bouquet_id }) }),
+};
+
+// SHOPS
+export const shopsApi = {
+  myStatus: () => req(`${URLS.shops}/?action=my_status`),
+  profile: (user_id?: number) => req(`${URLS.shops}/?action=profile${user_id ? `&user_id=${user_id}` : ""}`),
+  saveProfile: (data: { shop_name: string; logo_url?: string; description?: string; address?: string; phone?: string }) =>
+    req(`${URLS.shops}/?action=save_profile`, { method: "POST", body: JSON.stringify({ action: "save_profile", ...data }) }),
+  list: () => req(`${URLS.shops}/?action=list`),
+  shopBouquets: (user_id: number) => req(`${URLS.shops}/?action=shop_bouquets&user_id=${user_id}`),
+};
+
+// BANNERS
+export const bannersApi = {
+  list: () => req(`${URLS.banners}/?action=list`),
+  click: (banner_id: number) =>
+    req(`${URLS.banners}/?action=click`, { method: "POST", body: JSON.stringify({ action: "click", banner_id }) }),
+  adminList: () => req(`${URLS.banners}/?action=admin_list`),
+  create: (data: { title: string; media_url: string; media_type?: string; link_url?: string; description?: string; duration_seconds?: number; is_active?: boolean; sort_order?: number; contact_email?: string }) =>
+    req(`${URLS.banners}/?action=create_banner`, { method: "POST", body: JSON.stringify({ action: "create_banner", ...data }) }),
+  update: (data: { id: number; [key: string]: unknown }) =>
+    req(`${URLS.banners}/?action=update_banner`, { method: "POST", body: JSON.stringify({ action: "update_banner", ...data }) }),
+  delete: (id: number) =>
+    req(`${URLS.banners}/?action=delete_banner`, { method: "POST", body: JSON.stringify({ action: "delete_banner", id }) }),
+  stats: (banner_id?: number) =>
+    req(`${URLS.banners}/?action=banner_stats${banner_id ? `&banner_id=${banner_id}` : ""}`),
 };
 
 // PROFILE
@@ -151,6 +186,11 @@ export const adminApi = {
   reject: (withdrawal_id: number, comment?: string) =>
     req(`${URLS.admin}/?action=reject`, { method: "POST", body: JSON.stringify({ action: "reject", withdrawal_id, comment }) }),
   stats: () => req(`${URLS.admin}/?action=stats`),
+  subscriptions: () => req(`${URLS.admin}/?action=subscriptions`),
+  activateSubscription: (user_id: number, months: number, banner_addon: boolean) =>
+    req(`${URLS.admin}/?action=activate_subscription`, { method: "POST", body: JSON.stringify({ action: "activate_subscription", user_id, months, banner_addon }) }),
+  deactivateSubscription: (user_id: number) =>
+    req(`${URLS.admin}/?action=deactivate_subscription`, { method: "POST", body: JSON.stringify({ action: "deactivate_subscription", user_id }) }),
 };
 
 // PAYMENT (пополнение через ЮKassa)

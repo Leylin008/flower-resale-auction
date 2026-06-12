@@ -1,0 +1,18 @@
+{
+  "tests": [
+    {
+      "name": "Get active banners",
+      "method": "GET",
+      "path": "/?action=list",
+      "expectedStatus": 200,
+      "bodyMatcher": "partial"
+    },
+    {
+      "name": "Admin list unauthorized",
+      "method": "GET",
+      "path": "/?action=admin_list",
+      "expectedStatus": 403,
+      "bodyMatcher": "partial"
+    }
+  ]
+}

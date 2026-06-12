@@ -1,4 +1,6 @@
 {
+  "banners": "https://functions.poehali.dev/7efb814d-6696-46cc-99c4-b9eb27ac3f11",
+  "shops": "https://functions.poehali.dev/4e696c75-7ccd-435f-bcad-c1cc0b4ac528",
   "payment": "https://functions.poehali.dev/87035cc4-779f-49b8-a18c-1ed92268c9e4",
   "admin": "https://functions.poehali.dev/a5f90f0f-a62a-4230-ba88-9bc4c17060ff",
   "cities": "https://functions.poehali.dev/926ae37d-af28-4725-9ea2-1fb3bad5cefc",

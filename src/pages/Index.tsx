@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import Icon from "@/components/ui/icon";
-import { authApi, bouquetsApi, profileApi, uploadApi, escrowApi, oauthApi, adminApi, paymentApi } from "@/lib/api";
+import { authApi, bouquetsApi, profileApi, uploadApi, escrowApi, oauthApi, adminApi, paymentApi, shopsApi, bannersApi } from "@/lib/api";
+import AdBanners from "@/components/AdBanners";
 import { OnboardingTour, useOnboarding } from "@/components/OnboardingTour";
 import { useCities } from "@/lib/cities";
 import Partners from "@/pages/Partners";
@@ -1165,6 +1166,8 @@ function SellScreen({ user }: { user: User | null }) {
   const [sellCity, setSellCity] = useState(user?.city || "");
   const [sellDistrict, setSellDistrict] = useState("");
   const [meetPoint, setMeetPoint] = useState("");
+  const [saleType, setSaleType] = useState<"auction" | "fixed">("auction");
+  const [reserveEnabled, setReserveEnabled] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const handleFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -1185,10 +1188,13 @@ function SellScreen({ user }: { user: User | null }) {
       flowers: flowers.split(",").map(s => s.trim()).filter(Boolean),
       freshness, image_urls: images,
       start_price: parseFloat(price) || 500,
-      duration_hours: duration,
+      duration_hours: saleType === "auction" ? duration : 0,
       city: sellCity || undefined,
       district: sellDistrict || undefined,
       meet_point: meetPoint || undefined,
+      sale_type: saleType,
+      fixed_price: saleType === "fixed" ? parseFloat(price) : undefined,
+      reserve_enabled: reserveEnabled,
     });
     setLoading(false);
     if (!r.ok) { setError(r.data.error); return; }
@@ -1293,6 +1299,21 @@ function SellScreen({ user }: { user: User | null }) {
       {step === 2 && (
         <div className="animate-fade-in-up space-y-4">
           <div>
+            <label className="text-white/50 text-sm mb-1.5 block">Тип продажи</label>
+            <div className="grid grid-cols-2 gap-2">
+              {[{ id: "auction", label: "Аукцион", icon: "Zap", desc: "Ставки, побеждает максимальная" },
+                { id: "fixed", label: "Фикс. цена", icon: "Tag", desc: "Покупают сразу по вашей цене" }
+              ].map(t => (
+                <button key={t.id} onClick={() => setSaleType(t.id as "auction" | "fixed")}
+                  className="rounded-xl p-3 text-left transition-all"
+                  style={saleType === t.id ? { background: "var(--grad-main)", color: "#fff" } : { background: "rgba(255,255,255,0.05)", color: "rgba(255,255,255,0.5)" }}>
+                  <p className="font-semibold text-sm">{t.label}</p>
+                  <p className="text-xs mt-0.5 opacity-70">{t.desc}</p>
+                </button>
+              ))}
+            </div>
+          </div>
+          <div>
             <label className="text-white/50 text-sm mb-1.5 block">Когда подарили?</label>
             <div className="grid grid-cols-3 gap-2">
               {["сегодня", "вчера", "2–3 дня"].map(t => (
@@ -1305,7 +1326,7 @@ function SellScreen({ user }: { user: User | null }) {
             </div>
           </div>
           <div>
-            <label className="text-white/50 text-sm mb-1.5 block">Начальная цена</label>
+            <label className="text-white/50 text-sm mb-1.5 block">{saleType === "fixed" ? "Цена продажи" : "Начальная цена"}</label>
             <div className="glass rounded-xl px-4 py-3 flex items-center gap-2"
               style={parseFloat(price) > 0 && parseFloat(price) < 100 ? { border: "1px solid rgba(239,68,68,0.5)" } : {}}>
               <input value={price} onChange={e => setPrice(e.target.value)} type="number" min="100"
@@ -1338,17 +1359,28 @@ function SellScreen({ user }: { user: User | null }) {
               );
             })()}
           </div>
-          <div>
-            <label className="text-white/50 text-sm mb-1.5 block">Длительность аукциона</label>
-            <div className="grid grid-cols-3 gap-2">
-              {[1, 3, 6].map(h => (
-                <button key={h} onClick={() => setDuration(h)}
-                  className="rounded-xl py-3 text-sm font-medium transition-all"
-                  style={duration === h ? { background: "var(--grad-main)", color: "#fff" } : { background: "rgba(255,255,255,0.05)", color: "rgba(255,255,255,0.5)" }}>
-                  {h} {h === 1 ? "час" : "часа"}
-                </button>
-              ))}
+          {saleType === "auction" && (
+            <div>
+              <label className="text-white/50 text-sm mb-1.5 block">Длительность аукциона</label>
+              <div className="grid grid-cols-3 gap-2">
+                {[1, 3, 6].map(h => (
+                  <button key={h} onClick={() => setDuration(h)}
+                    className="rounded-xl py-3 text-sm font-medium transition-all"
+                    style={duration === h ? { background: "var(--grad-main)", color: "#fff" } : { background: "rgba(255,255,255,0.05)", color: "rgba(255,255,255,0.5)" }}>
+                    {h} {h === 1 ? "час" : "часа"}
+                  </button>
+                ))}
+              </div>
             </div>
+          )}
+          <div>
+            <label className="text-white/50 text-sm mb-1.5 block">Разрешить бронь</label>
+            <button onClick={() => setReserveEnabled(r => !r)}
+              className="w-full rounded-xl py-3 px-4 text-sm font-medium transition-all flex items-center justify-between"
+              style={reserveEnabled ? { background: "rgba(168,85,247,0.2)", border: "1px solid rgba(168,85,247,0.4)", color: "#fff" } : { background: "rgba(255,255,255,0.05)", color: "rgba(255,255,255,0.5)" }}>
+              <span>Покупатель может забронировать букет</span>
+              <span>{reserveEnabled ? "✓ Вкл" : "Выкл"}</span>
+            </button>
           </div>
           <div>
             <label className="text-white/50 text-sm mb-1.5 block">Город передачи</label>
@@ -1402,7 +1434,7 @@ function SellScreen({ user }: { user: User | null }) {
         )}
         <button onClick={() => step < 3 ? setStep(s => s + 1) : submit()} disabled={loading || (step === 1 && !title)}
           className="btn-gradient flex-1 rounded-2xl py-4 font-oswald text-lg tracking-wide disabled:opacity-50">
-          {loading ? "..." : step === 3 ? "ВЫСТАВИТЬ НА АУКЦИОН" : "ДАЛЕЕ"}
+          {loading ? "..." : step === 3 ? (saleType === "fixed" ? "ВЫСТАВИТЬ ПО ФИКС. ЦЕНЕ" : "ВЫСТАВИТЬ НА АУКЦИОН") : "ДАЛЕЕ"}
         </button>
       </div>
     </div>
@@ -1963,7 +1995,7 @@ function ChatWindow({ chat, user, onBack }: { chat: Chat; user: User; onBack: ()
 
 /* ─── PROFILE SCREEN ─────────────────────────────────────── */
 function ProfileScreen({ user, onLogout, onUpdate, onStartTour }: { user: User | null; onLogout: () => void; onUpdate?: () => void; onStartTour?: () => void }) {
-  const [tab, setTab] = useState<"about" | "reviews" | "referral" | "settings">("about");
+  const [tab, setTab] = useState<"about" | "reviews" | "referral" | "settings" | "shop">("about");
   const [copied, setCopied] = useState(false);
 
   const copyRef = (text: string) => {
@@ -2001,6 +2033,18 @@ function ProfileScreen({ user, onLogout, onUpdate, onStartTour }: { user: User |
   const [cancelConfirm, setCancelConfirm] = useState<number | null>(null);
   const [cancelMsg, setCancelMsg] = useState("");
   const [emailInput, setEmailInput] = useState(user?.email || "");
+
+  // Магазин
+  const [shopStatus, setShopStatus] = useState<{ subscription: { is_active: boolean; plan: string; expires_at?: string; banner_addon: boolean } | null; profile: { shop_name: string; logo_url?: string } | null; subscription_price: number; banner_addon_price: number } | null>(null);
+  const [shopName, setShopName] = useState("");
+  const [shopDesc, setShopDesc] = useState("");
+  const [shopAddress, setShopAddress] = useState("");
+  const [shopPhone, setShopPhone] = useState("");
+  const [shopLogoUrl, setShopLogoUrl] = useState("");
+  const [shopLogoUploading, setShopLogoUploading] = useState(false);
+  const [shopSaving, setShopSaving] = useState(false);
+  const [shopMsg, setShopMsg] = useState("");
+  const shopLogoRef = useRef<HTMLInputElement>(null);
   const [emailMsg, setEmailMsg] = useState("");
   const [emailSaving, setEmailSaving] = useState(false);
 
@@ -2069,6 +2113,17 @@ function ProfileScreen({ user, onLogout, onUpdate, onStartTour }: { user: User |
     if (!user) return;
     if (tab === "reviews") profileApi.reviews().then(r => { if (r.ok) setReviews(r.data.reviews); });
     if (tab === "about") { loadSales(); loadWithdrawals(); }
+    if (tab === "shop") {
+      shopsApi.myStatus().then(r => {
+        if (r.ok) {
+          setShopStatus(r.data);
+          if (r.data.profile) {
+            setShopName(r.data.profile.shop_name || "");
+            setShopLogoUrl(r.data.profile.logo_url || "");
+          }
+        }
+      });
+    }
   }, [tab, user, loadSales, loadWithdrawals]);
 
   if (!user) return (
@@ -2155,10 +2210,10 @@ function ProfileScreen({ user, onLogout, onUpdate, onStartTour }: { user: User |
         </div>
       </div>
 
-      <div className="flex gap-1.5 mb-4">
-        {([["about", "Кабинет"], ["reviews", "Отзывы"], ["referral", "Рефералы"], ["settings", "Настройки"]] as const).map(([k, l]) => (
+      <div className="flex gap-1.5 mb-4 overflow-x-auto pb-1">
+        {([["about", "Кабинет"], ["shop", "Магазин"], ["reviews", "Отзывы"], ["referral", "Рефералы"], ["settings", "Настройки"]] as const).map(([k, l]) => (
           <button key={k} onClick={() => setTab(k as typeof tab)}
-            className="flex-1 py-2.5 rounded-xl text-xs font-medium transition-all"
+            className="flex-shrink-0 py-2.5 px-3 rounded-xl text-xs font-medium transition-all"
             style={tab === k ? { background: "var(--grad-main)", color: "#fff" } : { background: "rgba(255,255,255,0.05)", color: "rgba(255,255,255,0.4)" }}>
             {l}
           </button>
@@ -2398,6 +2453,128 @@ function ProfileScreen({ user, onLogout, onUpdate, onStartTour }: { user: User |
         </div>
       )}
 
+      {tab === "shop" && (
+        <div className="space-y-4 animate-fade-in-up">
+          {!shopStatus ? (
+            <div className="text-center py-10 text-white/30">
+              <div className="animate-spin rounded-full w-8 h-8 border-2 border-pink-400 border-t-transparent mx-auto mb-3" />
+              <p>Загрузка...</p>
+            </div>
+          ) : !shopStatus.subscription?.is_active ? (
+            <div>
+              <div className="rounded-2xl p-5 mb-4 text-center"
+                style={{ background: "linear-gradient(135deg, rgba(168,85,247,0.15), rgba(255,61,139,0.15))", border: "1px solid rgba(168,85,247,0.3)" }}>
+                <span className="text-4xl block mb-3">🏪</span>
+                <h3 className="font-oswald text-xl font-bold text-white mb-2">Профиль магазина</h3>
+                <p className="text-white/50 text-sm mb-4">Откройте витрину своего магазина на платформе, размещайте букеты и привлекайте покупателей</p>
+                <div className="space-y-2 text-left mb-5">
+                  {["Отдельная страница магазина с логотипом", "Неограниченное количество букетов", "Все форматы продажи: аукцион, фикс. цена, бронь", "Опция: размещение в рекламных баннерах"].map(f => (
+                    <div key={f} className="flex items-center gap-2">
+                      <span className="text-green-400 text-sm">✓</span>
+                      <span className="text-white/70 text-sm">{f}</span>
+                    </div>
+                  ))}
+                </div>
+                <div className="glass rounded-2xl p-4 mb-4">
+                  <p className="text-white/40 text-xs mb-1">Стоимость подписки</p>
+                  <p className="gradient-text font-oswald text-2xl font-bold">{shopStatus.subscription_price.toLocaleString("ru-RU")} ₽/мес</p>
+                  <p className="text-white/30 text-xs mt-1">+ баннерная реклама {shopStatus.banner_addon_price.toLocaleString("ru-RU")} ₽/мес</p>
+                </div>
+                <p className="text-white/40 text-sm">Для подключения напишите нам:</p>
+                <a href="mailto:flowerflip@flowerflip.ru"
+                  className="btn-gradient inline-block mt-3 px-6 py-3 rounded-2xl font-oswald tracking-wide text-white no-underline">
+                  ПОДКЛЮЧИТЬ МАГАЗИН
+                </a>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <div className="glass rounded-2xl p-4" style={{ border: "1px solid rgba(168,85,247,0.3)" }}>
+                <div className="flex items-center justify-between mb-1">
+                  <p className="text-white/50 text-xs font-medium">ПОДПИСКА АКТИВНА</p>
+                  {shopStatus.subscription?.banner_addon && (
+                    <span className="text-xs px-2 py-0.5 rounded-full" style={{ background: "rgba(255,61,139,0.2)", color: "#ff3d8b" }}>+ Баннеры</span>
+                  )}
+                </div>
+                {shopStatus.subscription?.expires_at && (
+                  <p className="text-white/40 text-xs">До {new Date(shopStatus.subscription.expires_at).toLocaleDateString("ru-RU")}</p>
+                )}
+              </div>
+
+              <div className="glass rounded-2xl p-4">
+                <p className="text-white/50 text-sm font-medium mb-3">Профиль магазина</p>
+                <input ref={shopLogoRef} type="file" accept="image/*" className="hidden"
+                  onChange={async e => {
+                    const f = e.target.files?.[0]; if (!f) return;
+                    setShopLogoUploading(true);
+                    const url = await uploadApi.upload(f);
+                    setShopLogoUploading(false);
+                    if (url) setShopLogoUrl(url);
+                  }} />
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="w-16 h-16 rounded-2xl overflow-hidden flex-shrink-0 cursor-pointer"
+                    style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)" }}
+                    onClick={() => shopLogoRef.current?.click()}>
+                    {shopLogoUploading ? (
+                      <div className="w-full h-full flex items-center justify-center">
+                        <div className="animate-spin rounded-full w-5 h-5 border-2 border-pink-400 border-t-transparent" />
+                      </div>
+                    ) : shopLogoUrl ? (
+                      <img src={shopLogoUrl} className="w-full h-full object-cover" />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center text-2xl">🏪</div>
+                    )}
+                  </div>
+                  <div>
+                    <p className="text-white text-sm font-medium">Логотип магазина</p>
+                    <button onClick={() => shopLogoRef.current?.click()}
+                      className="text-pink-400 text-xs mt-1 hover:text-pink-300 transition-colors">
+                      {shopLogoUrl ? "Изменить" : "Загрузить"}
+                    </button>
+                  </div>
+                </div>
+                <div className="space-y-3">
+                  {[
+                    { label: "Название магазина *", val: shopName, set: setShopName, placeholder: "Цветочный рай" },
+                    { label: "Описание", val: shopDesc, set: setShopDesc, placeholder: "Продаём свежие букеты..." },
+                    { label: "Адрес", val: shopAddress, set: setShopAddress, placeholder: "ул. Цветочная, 1" },
+                    { label: "Телефон магазина", val: shopPhone, set: setShopPhone, placeholder: "+7 999 000 00 00" },
+                  ].map(({ label, val, set, placeholder }) => (
+                    <div key={label}>
+                      <label className="text-white/40 text-xs mb-1 block">{label}</label>
+                      <input value={val} onChange={e => set(e.target.value)}
+                        className="glass w-full rounded-xl px-4 py-2.5 text-white placeholder:text-white/30 text-sm outline-none"
+                        placeholder={placeholder} />
+                    </div>
+                  ))}
+                </div>
+                {shopMsg && <p className={`text-xs mt-2 ${shopMsg.includes("Сохранено") ? "text-green-400" : "text-red-400"}`}>{shopMsg}</p>}
+                <button
+                  onClick={async () => {
+                    if (!shopName.trim()) { setShopMsg("Укажите название магазина"); return; }
+                    setShopSaving(true); setShopMsg("");
+                    const r = await shopsApi.saveProfile({ shop_name: shopName, logo_url: shopLogoUrl || undefined, description: shopDesc || undefined, address: shopAddress || undefined, phone: shopPhone || undefined });
+                    setShopSaving(false);
+                    setShopMsg(r.ok ? "Сохранено!" : (r.data.error || "Ошибка"));
+                  }}
+                  disabled={shopSaving}
+                  className="btn-gradient w-full rounded-2xl py-3 mt-4 font-oswald tracking-wide disabled:opacity-50">
+                  {shopSaving ? "СОХРАНЕНИЕ..." : "СОХРАНИТЬ МАГАЗИН"}
+                </button>
+              </div>
+
+              {shopStatus.subscription?.banner_addon && (
+                <div className="glass rounded-2xl p-4" style={{ border: "1px solid rgba(255,61,139,0.2)" }}>
+                  <p className="text-white/50 text-sm font-medium mb-2">Рекламные баннеры</p>
+                  <p className="text-white/40 text-xs">У вас подключена опция баннерной рекламы. Для управления баннерами обратитесь к администратору или напишите на:</p>
+                  <a href="mailto:flowerflip@flowerflip.ru" className="text-pink-400 text-xs mt-1 block hover:text-pink-300 transition-colors">flowerflip@flowerflip.ru</a>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
       {tab === "reviews" && (
         <div className="space-y-3 animate-fade-in-up">
           {reviews.length === 0 ? (
@@ -2624,12 +2801,32 @@ interface AdminStats {
   paid_total: number; users_count: number; completed_orders: number;
 }
 
+interface AdminBanner {
+  id: number; title: string; media_url: string; media_type: string;
+  link_url?: string; description?: string; duration_seconds: number;
+  is_active: boolean; sort_order: number; contact_email?: string;
+  created_at: string; clicks: number;
+}
+
 function AdminScreen({ user }: { user: User | null }) {
+  const [adminTab, setAdminTab] = useState<"withdrawals" | "banners" | "shops">("withdrawals");
   const [stats, setStats] = useState<AdminStats | null>(null);
   const [items, setItems] = useState<AdminWithdrawal[]>([]);
   const [filter, setFilter] = useState("pending");
   const [busy, setBusy] = useState<number | null>(null);
   const [msg, setMsg] = useState("");
+
+  // Баннеры
+  const [banners, setBanners] = useState<AdminBanner[]>([]);
+  const [bannerForm, setBannerForm] = useState<Partial<AdminBanner> & { _open?: boolean }>({});
+  const [bannerMsg, setBannerMsg] = useState("");
+  const [bannerUploading, setBannerUploading] = useState(false);
+  const bannerFileRef = useRef<HTMLInputElement>(null);
+
+  // Подписки магазинов
+  const [subscriptions, setSubscriptions] = useState<{ id: number; user_id: number; user_name: string; user_email?: string; shop_name?: string; status: string; expires_at?: string; banner_addon: boolean }[]>([]);
+  const [subForm, setSubForm] = useState<{ user_id: string; months: string; banner_addon: boolean }>({ user_id: "", months: "1", banner_addon: false });
+  const [subMsg, setSubMsg] = useState("");
 
   const load = useCallback(() => {
     adminApi.stats().then(r => { if (r.ok) setStats(r.data); });
@@ -2638,12 +2835,55 @@ function AdminScreen({ user }: { user: User | null }) {
 
   useEffect(() => { load(); }, [load]);
 
+  useEffect(() => {
+    if (adminTab === "banners") bannersApi.adminList().then(r => { if (r.ok) setBanners(r.data.banners); });
+    if (adminTab === "shops") adminApi.subscriptions().then(r => { if (r.ok) setSubscriptions(r.data.subscriptions); });
+  }, [adminTab]);
+
   const act = async (id: number, type: "approve" | "reject") => {
     setBusy(id);
     const r = type === "approve" ? await adminApi.approve(id) : await adminApi.reject(id);
     setBusy(null);
     setMsg(r.ok ? r.data.message : (r.data.error || "Ошибка"));
     if (r.ok) load();
+  };
+
+  const saveBanner = async () => {
+    setBannerMsg("");
+    if (!bannerForm.title || !bannerForm.media_url) { setBannerMsg("Укажите название и файл"); return; }
+    const r = bannerForm.id
+      ? await bannersApi.update({ id: bannerForm.id, ...bannerForm })
+      : await bannersApi.create({
+          title: bannerForm.title!, media_url: bannerForm.media_url!,
+          media_type: bannerForm.media_type || "image",
+          link_url: bannerForm.link_url, description: bannerForm.description,
+          duration_seconds: bannerForm.duration_seconds || 5,
+          is_active: bannerForm.is_active !== false,
+          sort_order: bannerForm.sort_order || 0,
+          contact_email: bannerForm.contact_email,
+        });
+    if (r.ok) {
+      setBannerMsg("Сохранено!");
+      setBannerForm({});
+      bannersApi.adminList().then(res => { if (res.ok) setBanners(res.data.banners); });
+    } else setBannerMsg(r.data.error || "Ошибка");
+  };
+
+  const deleteBanner = async (id: number) => {
+    await bannersApi.delete(id);
+    bannersApi.adminList().then(r => { if (r.ok) setBanners(r.data.banners); });
+  };
+
+  const toggleBanner = async (b: AdminBanner) => {
+    await bannersApi.update({ id: b.id, is_active: !b.is_active });
+    bannersApi.adminList().then(r => { if (r.ok) setBanners(r.data.banners); });
+  };
+
+  const activateSub = async () => {
+    if (!subForm.user_id) { setSubMsg("Укажите ID пользователя"); return; }
+    const r = await adminApi.activateSubscription(parseInt(subForm.user_id), parseInt(subForm.months), subForm.banner_addon);
+    setSubMsg(r.ok ? "Подписка активирована!" : (r.data.error || "Ошибка"));
+    if (r.ok) adminApi.subscriptions().then(res => { if (res.ok) setSubscriptions(res.data.subscriptions); });
   };
 
   const methodLabel: Record<string, string> = { card: "Карта", sbp: "СБП", wallet: "Кошелёк" };
@@ -2659,93 +2899,238 @@ function AdminScreen({ user }: { user: User | null }) {
 
   return (
     <div className="animate-fade-in">
-      <h2 className="font-oswald text-2xl font-bold text-white mb-4">Админ-панель</h2>
-      <a href="https://flowerflip.ru/partners" target="_blank" rel="noreferrer"
-        className="flex items-center gap-2 glass rounded-2xl px-4 py-3 mb-4 text-sm font-medium"
-        style={{ color: "#a855f7", border: "1px solid rgba(168,85,247,0.2)" }}>
-        <Icon name="Presentation" size={16} />
-        Страница для партнёров — скрытая ссылка: flowerflip.ru/partners
-      </a>
+      <h2 className="font-oswald text-2xl font-bold text-white mb-3">Админ-панель</h2>
 
-      {/* Статистика */}
       {stats && (
-        <div className="grid grid-cols-2 gap-3 mb-5">
-          <div className="glass rounded-2xl p-4">
-            <p className="gradient-text font-oswald text-2xl font-bold">{formatPrice(stats.total_commission)}</p>
-            <p className="text-white/40 text-xs mt-1">Комиссия платформы</p>
-          </div>
-          <div className="glass rounded-2xl p-4">
-            <p className="font-oswald text-2xl font-bold text-yellow-400">{formatPrice(stats.pending_amount)}</p>
-            <p className="text-white/40 text-xs mt-1">Заявок на вывод: {stats.pending_count}</p>
-          </div>
-          <div className="glass rounded-2xl p-4">
-            <p className="font-oswald text-2xl font-bold text-white">{stats.users_count}</p>
-            <p className="text-white/40 text-xs mt-1">Пользователей</p>
-          </div>
-          <div className="glass rounded-2xl p-4">
-            <p className="font-oswald text-2xl font-bold text-white">{stats.completed_orders}</p>
-            <p className="text-white/40 text-xs mt-1">Завершённых сделок</p>
-          </div>
+        <div className="grid grid-cols-2 gap-2 mb-4">
+          {[
+            { label: "Комиссия", val: formatPrice(stats.total_commission), color: "gradient-text" },
+            { label: `Выводов (${stats.pending_count})`, val: formatPrice(stats.pending_amount), color: "text-yellow-400" },
+            { label: "Пользователей", val: stats.users_count, color: "text-white" },
+            { label: "Сделок", val: stats.completed_orders, color: "text-white" },
+          ].map(s => (
+            <div key={s.label} className="glass rounded-2xl p-3">
+              <p className={`font-oswald text-xl font-bold ${s.color}`}>{s.val}</p>
+              <p className="text-white/40 text-xs mt-0.5">{s.label}</p>
+            </div>
+          ))}
         </div>
       )}
 
-      {msg && <p className="text-sm mb-3 text-center text-pink-400">{msg}</p>}
-
-      {/* Фильтр статусов */}
       <div className="flex gap-2 mb-4">
-        {[["pending", "Новые"], ["paid", "Выплачено"], ["rejected", "Отклонено"], ["", "Все"]].map(([f, l]) => (
-          <button key={f} onClick={() => setFilter(f)}
-            className="flex-1 py-2 rounded-xl text-xs font-medium transition-all"
-            style={filter === f ? { background: "var(--grad-main)", color: "#fff" } : { background: "rgba(255,255,255,0.05)", color: "rgba(255,255,255,0.4)" }}>
+        {([["withdrawals", "Выводы"], ["banners", "Баннеры"], ["shops", "Магазины"]] as const).map(([k, l]) => (
+          <button key={k} onClick={() => setAdminTab(k)}
+            className="flex-1 py-2.5 rounded-xl text-xs font-medium transition-all"
+            style={adminTab === k ? { background: "var(--grad-main)", color: "#fff" } : { background: "rgba(255,255,255,0.05)", color: "rgba(255,255,255,0.4)" }}>
             {l}
           </button>
         ))}
       </div>
 
-      {/* Заявки */}
-      {items.length === 0 ? (
-        <div className="text-center py-12">
-          <span className="text-4xl block mb-3">📭</span>
-          <p className="text-white/40 text-sm">Нет заявок</p>
-        </div>
-      ) : (
-        <div className="space-y-3">
-          {items.map(w => (
-            <div key={w.id} className="glass rounded-2xl p-4">
-              <div className="flex items-start justify-between mb-2">
-                <div>
-                  <p className="text-white font-medium">{w.user_name}</p>
-                  <p className="text-white/40 text-xs">{w.user_phone}</p>
+      {adminTab === "withdrawals" && (
+        <div>
+          {msg && <p className="text-sm mb-3 text-center text-pink-400">{msg}</p>}
+          <div className="flex gap-2 mb-4">
+            {[["pending", "Новые"], ["paid", "Выплачено"], ["rejected", "Отклонено"], ["", "Все"]].map(([f, l]) => (
+              <button key={f} onClick={() => setFilter(f)}
+                className="flex-1 py-2 rounded-xl text-xs font-medium transition-all"
+                style={filter === f ? { background: "var(--grad-main)", color: "#fff" } : { background: "rgba(255,255,255,0.05)", color: "rgba(255,255,255,0.4)" }}>
+                {l}
+              </button>
+            ))}
+          </div>
+          {items.length === 0 ? (
+            <div className="text-center py-12"><span className="text-4xl block mb-3">📭</span><p className="text-white/40 text-sm">Нет заявок</p></div>
+          ) : (
+            <div className="space-y-3">
+              {items.map(w => (
+                <div key={w.id} className="glass rounded-2xl p-4">
+                  <div className="flex items-start justify-between mb-2">
+                    <div><p className="text-white font-medium">{w.user_name}</p><p className="text-white/40 text-xs">{w.user_phone}</p></div>
+                    <span className={`text-xs ${statusColor[w.status]}`}>{statusLabel[w.status] || w.status}</span>
+                  </div>
+                  <div className="flex items-center justify-between mb-3">
+                    <span className="gradient-text font-oswald text-xl font-bold">{formatPrice(w.amount)}</span>
+                    <span className="text-white/50 text-sm">{methodLabel[w.method] || w.method}</span>
+                  </div>
+                  <div className="glass rounded-xl px-3 py-2 mb-3 flex items-center gap-2">
+                    <Icon name="CreditCard" size={14} className="text-white/30" />
+                    <span className="text-white/70 text-sm font-mono">{w.details}</span>
+                  </div>
+                  {w.status === "pending" && (
+                    <div className="flex gap-2">
+                      <button onClick={() => act(w.id, "approve")} disabled={busy === w.id}
+                        className="flex-1 rounded-xl py-2.5 text-sm font-medium text-white" style={{ background: "rgba(34,197,94,0.8)" }}>Выплачено</button>
+                      <button onClick={() => act(w.id, "reject")} disabled={busy === w.id}
+                        className="flex-1 rounded-xl py-2.5 text-sm font-medium text-white" style={{ background: "rgba(239,68,68,0.8)" }}>Отклонить</button>
+                    </div>
+                  )}
+                  <p className="text-white/30 text-xs mt-2">{new Date(w.created_at).toLocaleString("ru-RU")}</p>
                 </div>
-                <span className={`text-xs ${statusColor[w.status]}`}>{statusLabel[w.status] || w.status}</span>
-              </div>
-              <div className="flex items-center justify-between mb-3">
-                <span className="gradient-text font-oswald text-xl font-bold">{formatPrice(w.amount)}</span>
-                <span className="text-white/50 text-sm">{methodLabel[w.method] || w.method}</span>
-              </div>
-              <div className="glass rounded-xl px-3 py-2 mb-3 flex items-center gap-2">
-                <Icon name="CreditCard" size={14} className="text-white/30" />
-                <span className="text-white/70 text-sm font-mono">{w.details}</span>
-              </div>
-              {w.status === "pending" && (
-                <div className="flex gap-2">
-                  <button onClick={() => act(w.id, "approve")} disabled={busy === w.id}
-                    className="flex-1 rounded-xl py-2.5 text-sm font-medium text-white transition-colors"
-                    style={{ background: "rgba(34,197,94,0.8)" }}>
-                    Выплачено
-                  </button>
-                  <button onClick={() => act(w.id, "reject")} disabled={busy === w.id}
-                    className="flex-1 rounded-xl py-2.5 text-sm font-medium text-white transition-colors"
-                    style={{ background: "rgba(239,68,68,0.8)" }}>
-                    Отклонить
-                  </button>
-                </div>
-              )}
-              <p className="text-white/30 text-xs mt-2">{new Date(w.created_at).toLocaleString("ru-RU")}</p>
+              ))}
             </div>
-          ))}
+          )}
         </div>
       )}
+
+      {adminTab === "banners" && (
+        <div className="space-y-3">
+          <input ref={bannerFileRef} type="file" accept="image/*,video/*" className="hidden"
+            onChange={async e => {
+              const f = e.target.files?.[0]; if (!f) return;
+              setBannerUploading(true);
+              const url = await uploadApi.upload(f);
+              setBannerUploading(false);
+              if (url) setBannerForm(p => ({ ...p, media_url: url, media_type: f.type.startsWith("video") ? "video" : "image" }));
+            }} />
+
+          <div className="glass rounded-2xl p-4" style={{ border: "1px solid rgba(255,61,139,0.2)" }}>
+            <p className="text-white/50 text-sm font-medium mb-3">{bannerForm.id ? "Редактировать баннер" : "Добавить баннер"}</p>
+            <div className="space-y-2">
+              <input value={bannerForm.title || ""} onChange={e => setBannerForm(p => ({ ...p, title: e.target.value }))}
+                className="glass w-full rounded-xl px-4 py-2.5 text-white placeholder:text-white/30 text-sm outline-none"
+                placeholder="Название баннера" />
+              <div className="flex gap-2">
+                <div className="flex-1 glass rounded-xl px-3 py-2.5 flex items-center gap-2 cursor-pointer" onClick={() => bannerFileRef.current?.click()}>
+                  {bannerUploading
+                    ? <div className="animate-spin rounded-full w-4 h-4 border-2 border-pink-400 border-t-transparent" />
+                    : <Icon name="Upload" size={14} className="text-white/40" />}
+                  <span className="text-white/50 text-xs truncate">{bannerForm.media_url ? "Файл загружен ✓" : "Загрузить фото/видео"}</span>
+                </div>
+                <select value={bannerForm.media_type || "image"} onChange={e => setBannerForm(p => ({ ...p, media_type: e.target.value }))}
+                  className="glass rounded-xl px-3 py-2.5 text-white/70 text-xs outline-none bg-transparent">
+                  <option value="image">Фото</option>
+                  <option value="video">Видео</option>
+                </select>
+              </div>
+              <input value={bannerForm.link_url || ""} onChange={e => setBannerForm(p => ({ ...p, link_url: e.target.value }))}
+                className="glass w-full rounded-xl px-4 py-2.5 text-white placeholder:text-white/30 text-sm outline-none"
+                placeholder="Ссылка при клике (необязательно)" />
+              <input value={bannerForm.description || ""} onChange={e => setBannerForm(p => ({ ...p, description: e.target.value }))}
+                className="glass w-full rounded-xl px-4 py-2.5 text-white placeholder:text-white/30 text-sm outline-none"
+                placeholder="Описание (необязательно)" />
+              <input value={bannerForm.contact_email || ""} onChange={e => setBannerForm(p => ({ ...p, contact_email: e.target.value }))}
+                className="glass w-full rounded-xl px-4 py-2.5 text-white placeholder:text-white/30 text-sm outline-none"
+                placeholder="Email рекламодателя" />
+              <div className="flex gap-2">
+                <div className="flex-1">
+                  <label className="text-white/40 text-xs block mb-1">Длительность (сек)</label>
+                  <input type="number" min="1" max="30" value={bannerForm.duration_seconds || 5}
+                    onChange={e => setBannerForm(p => ({ ...p, duration_seconds: parseInt(e.target.value) }))}
+                    className="glass w-full rounded-xl px-3 py-2.5 text-white text-sm outline-none" />
+                </div>
+                <div className="flex-1">
+                  <label className="text-white/40 text-xs block mb-1">Порядок</label>
+                  <input type="number" min="0" value={bannerForm.sort_order || 0}
+                    onChange={e => setBannerForm(p => ({ ...p, sort_order: parseInt(e.target.value) }))}
+                    className="glass w-full rounded-xl px-3 py-2.5 text-white text-sm outline-none" />
+                </div>
+                <div className="flex-1">
+                  <label className="text-white/40 text-xs block mb-1">Активен</label>
+                  <button onClick={() => setBannerForm(p => ({ ...p, is_active: !p.is_active }))}
+                    className="w-full rounded-xl py-2.5 text-sm transition-all"
+                    style={bannerForm.is_active !== false ? { background: "rgba(34,197,94,0.2)", color: "#4ade80" } : { background: "rgba(255,255,255,0.05)", color: "rgba(255,255,255,0.4)" }}>
+                    {bannerForm.is_active !== false ? "Вкл" : "Выкл"}
+                  </button>
+                </div>
+              </div>
+            </div>
+            {bannerMsg && <p className={`text-xs mt-2 ${bannerMsg.includes("Сохранено") ? "text-green-400" : "text-red-400"}`}>{bannerMsg}</p>}
+            <div className="flex gap-2 mt-3">
+              <button onClick={saveBanner} className="btn-gradient flex-1 rounded-xl py-2.5 text-sm font-oswald">
+                {bannerForm.id ? "СОХРАНИТЬ" : "ДОБАВИТЬ"}
+              </button>
+              {bannerForm.id && (
+                <button onClick={() => setBannerForm({})} className="glass rounded-xl px-4 py-2.5 text-white/50 text-sm">Отмена</button>
+              )}
+            </div>
+          </div>
+
+          {banners.length === 0 ? (
+            <div className="text-center py-8"><span className="text-3xl block mb-2">🖼</span><p className="text-white/30 text-sm">Баннеров нет</p></div>
+          ) : (
+            <div className="space-y-2">
+              {banners.map(b => (
+                <div key={b.id} className="glass rounded-2xl p-3 flex items-center gap-3">
+                  <div className="w-14 h-10 rounded-xl overflow-hidden flex-shrink-0 bg-white/5">
+                    {b.media_type === "video"
+                      ? <div className="w-full h-full flex items-center justify-center text-white/40"><Icon name="Play" size={16} /></div>
+                      : <img src={b.media_url} className="w-full h-full object-cover" />}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-white text-sm font-medium truncate">{b.title}</p>
+                    <p className="text-white/40 text-xs">{b.duration_seconds}с · {b.clicks} кликов · {b.is_active ? "активен" : "выкл"}</p>
+                  </div>
+                  <div className="flex gap-1.5 flex-shrink-0">
+                    <button onClick={() => toggleBanner(b)}
+                      className="rounded-lg px-2 py-1.5 text-xs transition-all"
+                      style={b.is_active ? { background: "rgba(34,197,94,0.15)", color: "#4ade80" } : { background: "rgba(255,255,255,0.05)", color: "rgba(255,255,255,0.3)" }}>
+                      {b.is_active ? "Вкл" : "Выкл"}
+                    </button>
+                    <button onClick={() => setBannerForm({ ...b })} className="glass rounded-lg px-2 py-1.5 text-white/50 text-xs">✏️</button>
+                    <button onClick={() => deleteBanner(b.id)} className="rounded-lg px-2 py-1.5 text-xs" style={{ background: "rgba(239,68,68,0.15)", color: "#f87171" }}>🗑</button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {adminTab === "shops" && (
+        <div className="space-y-4">
+          <div className="glass rounded-2xl p-4" style={{ border: "1px solid rgba(168,85,247,0.2)" }}>
+            <p className="text-white/50 text-sm font-medium mb-3">Активировать подписку</p>
+            <div className="space-y-2">
+              <input value={subForm.user_id} onChange={e => setSubForm(p => ({ ...p, user_id: e.target.value }))}
+                className="glass w-full rounded-xl px-4 py-2.5 text-white placeholder:text-white/30 text-sm outline-none"
+                placeholder="ID пользователя" type="number" />
+              <div className="flex gap-2">
+                <div className="flex-1">
+                  <label className="text-white/40 text-xs block mb-1">Месяцев</label>
+                  <input type="number" min="1" value={subForm.months} onChange={e => setSubForm(p => ({ ...p, months: e.target.value }))}
+                    className="glass w-full rounded-xl px-3 py-2.5 text-white text-sm outline-none" />
+                </div>
+                <div className="flex-1">
+                  <label className="text-white/40 text-xs block mb-1">+ Баннеры</label>
+                  <button onClick={() => setSubForm(p => ({ ...p, banner_addon: !p.banner_addon }))}
+                    className="w-full rounded-xl py-2.5 text-sm transition-all"
+                    style={subForm.banner_addon ? { background: "rgba(255,61,139,0.2)", color: "#ff3d8b" } : { background: "rgba(255,255,255,0.05)", color: "rgba(255,255,255,0.4)" }}>
+                    {subForm.banner_addon ? "Вкл" : "Выкл"}
+                  </button>
+                </div>
+              </div>
+            </div>
+            {subMsg && <p className={`text-xs mt-2 ${subMsg.includes("активирована") ? "text-green-400" : "text-red-400"}`}>{subMsg}</p>}
+            <button onClick={activateSub} className="btn-gradient w-full rounded-xl py-2.5 mt-3 text-sm font-oswald">АКТИВИРОВАТЬ</button>
+          </div>
+
+          {subscriptions.length === 0 ? (
+            <div className="text-center py-8"><span className="text-3xl block mb-2">🏪</span><p className="text-white/30 text-sm">Подписок нет</p></div>
+          ) : (
+            <div className="space-y-2">
+              {subscriptions.map(s => (
+                <div key={s.id} className="glass rounded-2xl p-3">
+                  <div className="flex items-center justify-between mb-1">
+                    <p className="text-white text-sm font-medium">{s.shop_name || s.user_name}</p>
+                    <span className={`text-xs ${s.status === "active" ? "text-green-400" : "text-white/30"}`}>{s.status === "active" ? "Активна" : "Неактивна"}</span>
+                  </div>
+                  <p className="text-white/40 text-xs">ID: {s.user_id} · {s.user_email || "—"}</p>
+                  {s.expires_at && <p className="text-white/30 text-xs">До: {new Date(s.expires_at).toLocaleDateString("ru-RU")}</p>}
+                  {s.banner_addon && <span className="text-xs text-pink-400">+ баннеры</span>}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      <a href="https://flowerflip.ru/partners" target="_blank" rel="noreferrer"
+        className="flex items-center gap-2 glass rounded-2xl px-4 py-3 mt-4 text-sm font-medium"
+        style={{ color: "#a855f7", border: "1px solid rgba(168,85,247,0.2)" }}>
+        <Icon name="Presentation" size={16} />
+        Страница для партнёров
+      </a>
     </div>
   );
 }
@@ -2912,6 +3297,7 @@ export default function Index() {
       )}
 
       <main className="max-w-lg mx-auto px-4 py-5 pb-28">
+        {(activeTab === "auctions" || activeTab === "catalog") && <AdBanners />}
         {activeTab === "auctions" && <AuctionsScreen onBid={setBidModal} user={user} />}
         {activeTab === "catalog" && <CatalogScreen user={user} />}
         {activeTab === "sell" && <SellScreen user={user} />}

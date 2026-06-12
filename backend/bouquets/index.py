@@ -111,17 +111,18 @@ def get_user_by_token(conn, token: str):
 
 def row_to_bouquet(row, cols):
     d = dict(zip(cols, row))
-    for f in ["start_price", "current_price", "min_step"]:
+    for f in ["start_price", "current_price", "min_step", "fixed_price"]:
         if d.get(f) is not None:
             d[f] = float(d[f])
-    if d.get("ends_at"):
-        d["ends_at"] = str(d["ends_at"])
-    if d.get("created_at"):
-        d["created_at"] = str(d["created_at"])
+    for f in ["ends_at", "created_at", "reserve_until"]:
+        if d.get(f):
+            d[f] = str(d[f])
     if d.get("seller_rating") is not None:
         d["seller_rating"] = float(d["seller_rating"])
     if d.get("liked") is None:
         d["liked"] = False
+    if d.get("sale_type") is None:
+        d["sale_type"] = "auction"
     return d
 
 def handler(event: dict, context) -> dict:
@@ -189,12 +190,14 @@ def handler(event: dict, context) -> dict:
 
             cols = ["id","seller_id","seller_name","seller_rating","title","description","flowers",
                     "freshness","image_urls","start_price","current_price","min_step","bids_count",
-                    "status","ends_at","created_at","liked","city","district","meet_point"]
+                    "status","ends_at","created_at","liked","city","district","meet_point",
+                    "sale_type","fixed_price","reserve_enabled","reserved_by","reserve_until"]
             sql = (
                 f"SELECT b.id, b.seller_id, u.name, u.rating, "
                 f"b.title, b.description, b.flowers, b.freshness, b.image_urls, "
                 f"b.start_price, b.current_price, b.min_step, b.bids_count, b.status, b.ends_at, b.created_at, "
-                f"{fav_col}, b.city, b.district, b.meet_point "
+                f"{fav_col}, b.city, b.district, b.meet_point, "
+                f"b.sale_type, b.fixed_price, b.reserve_enabled, b.reserved_by, b.reserve_until "
                 f"FROM {SCHEMA}.bouquets b "
                 f"JOIN {SCHEMA}.users u ON u.id = b.seller_id "
                 f"WHERE {where_sql} "
@@ -216,12 +219,14 @@ def handler(event: dict, context) -> dict:
                 fav_col = "false as liked"
             cols = ["id","seller_id","seller_name","seller_rating","title","description","flowers",
                     "freshness","image_urls","start_price","current_price","min_step","bids_count",
-                    "status","ends_at","created_at","liked","city","district","meet_point"]
+                    "status","ends_at","created_at","liked","city","district","meet_point",
+                    "sale_type","fixed_price","reserve_enabled","reserved_by","reserve_until"]
             with conn.cursor() as cur:
                 cur.execute(
                     f"SELECT b.id, b.seller_id, u.name, u.rating, b.title, b.description, b.flowers, "
                     f"b.freshness, b.image_urls, b.start_price, b.current_price, b.min_step, b.bids_count, "
-                    f"b.status, b.ends_at, b.created_at, {fav_col}, b.city, b.district, b.meet_point "
+                    f"b.status, b.ends_at, b.created_at, {fav_col}, b.city, b.district, b.meet_point, "
+                    f"b.sale_type, b.fixed_price, b.reserve_enabled, b.reserved_by, b.reserve_until "
                     f"FROM {SCHEMA}.bouquets b JOIN {SCHEMA}.users u ON u.id = b.seller_id "
                     f"WHERE b.id = %s", (bid,)
                 )
@@ -246,15 +251,21 @@ def handler(event: dict, context) -> dict:
             city = body.get("city", "").strip() or None
             district = body.get("district", "").strip() or None
             meet_point = body.get("meet_point", "").strip() or None
+            sale_type = body.get("sale_type", "auction")
+            fixed_price = float(body.get("fixed_price", start_price)) if sale_type == "fixed" else None
+            reserve_enabled = bool(body.get("reserve_enabled", False))
             if not title:
                 return {"statusCode": 400, "headers": CORS, "body": json.dumps({"error": "Укажите название"})}
+            if sale_type not in ("auction", "fixed"):
+                return {"statusCode": 400, "headers": CORS, "body": json.dumps({"error": "Неверный тип продажи"})}
+            ends_at_sql = f"NOW() + INTERVAL '{duration_hours} hours'" if sale_type == "auction" else "NULL"
             with conn.cursor() as cur:
                 cur.execute(
                     f"INSERT INTO {SCHEMA}.bouquets "
-                    f"(seller_id, title, description, flowers, freshness, image_urls, start_price, current_price, ends_at, city, district, meet_point) "
-                    f"VALUES (%s, %s, %s, %s, %s, %s, %s, %s, NOW() + INTERVAL '{duration_hours} hours', %s, %s, %s) "
+                    f"(seller_id, title, description, flowers, freshness, image_urls, start_price, current_price, ends_at, city, district, meet_point, sale_type, fixed_price, reserve_enabled) "
+                    f"VALUES (%s, %s, %s, %s, %s, %s, %s, %s, {ends_at_sql}, %s, %s, %s, %s, %s, %s) "
                     f"RETURNING id",
-                    (user["id"], title, description, flowers, freshness, image_urls, start_price, start_price, city, district, meet_point)
+                    (user["id"], title, description, flowers, freshness, image_urls, start_price, start_price, city, district, meet_point, sale_type, fixed_price, reserve_enabled)
                 )
                 new_id = cur.fetchone()[0]
                 cur.execute(
@@ -263,6 +274,103 @@ def handler(event: dict, context) -> dict:
                 )
             conn.commit()
             return {"statusCode": 200, "headers": CORS, "body": json.dumps({"id": new_id})}
+
+        # POST buy_fixed — купить по фиксированной цене
+        if action == "buy_fixed" and method == "POST":
+            if not user:
+                return {"statusCode": 401, "headers": CORS, "body": json.dumps({"error": "Не авторизован"})}
+            bouquet_id = int(body.get("bouquet_id", 0))
+            with conn.cursor() as cur:
+                cur.execute(
+                    f"SELECT b.fixed_price, b.status, b.seller_id, b.sale_type FROM {SCHEMA}.bouquets b WHERE b.id = %s",
+                    (bouquet_id,)
+                )
+                b = cur.fetchone()
+            if not b:
+                return {"statusCode": 404, "headers": CORS, "body": json.dumps({"error": "Букет не найден"})}
+            if b[1] != "active":
+                return {"statusCode": 400, "headers": CORS, "body": json.dumps({"error": "Букет уже продан или снят"})}
+            if b[3] != "fixed":
+                return {"statusCode": 400, "headers": CORS, "body": json.dumps({"error": "Этот букет продаётся на аукционе"})}
+            if b[2] == user["id"]:
+                return {"statusCode": 400, "headers": CORS, "body": json.dumps({"error": "Нельзя купить свой букет"})}
+            amount = float(b[0])
+            yookassa_fee = round(amount * YOOKASSA_FEE, 2)
+            net_after = round(amount - yookassa_fee, 2)
+            commission = round(yookassa_fee + round(net_after * COMMISSION, 2), 2)
+            with conn.cursor() as cur:
+                cur.execute(f"UPDATE {SCHEMA}.bouquets SET status = 'won' WHERE id = %s", (bouquet_id,))
+                cur.execute(
+                    f"SELECT id FROM {SCHEMA}.orders WHERE bouquet_id = %s", (bouquet_id,)
+                )
+                if not cur.fetchone():
+                    cur.execute(
+                        f"INSERT INTO {SCHEMA}.orders (bouquet_id, buyer_id, seller_id, amount, commission, escrow_status) "
+                        f"VALUES (%s, %s, %s, %s, %s, 'waiting_payment')",
+                        (bouquet_id, user["id"], b[2], amount, commission)
+                    )
+                    cur.execute(
+                        f"INSERT INTO {SCHEMA}.messages (sender_id, receiver_id, text, bouquet_id) VALUES (%s, %s, %s, %s)",
+                        (b[2], user["id"], "🛒 Вы купили букет! Оплатите заказ во вкладке «Сделки».", bouquet_id)
+                    )
+            conn.commit()
+            return {"statusCode": 200, "headers": CORS, "body": json.dumps({"ok": True})}
+
+        # POST reserve — забронировать букет
+        if action == "reserve" and method == "POST":
+            if not user:
+                return {"statusCode": 401, "headers": CORS, "body": json.dumps({"error": "Не авторизован"})}
+            bouquet_id = int(body.get("bouquet_id", 0))
+            hours = int(body.get("hours", 24))
+            with conn.cursor() as cur:
+                cur.execute(
+                    f"SELECT reserve_enabled, status, seller_id, reserved_by FROM {SCHEMA}.bouquets WHERE id = %s",
+                    (bouquet_id,)
+                )
+                b = cur.fetchone()
+            if not b:
+                return {"statusCode": 404, "headers": CORS, "body": json.dumps({"error": "Букет не найден"})}
+            if not b[0]:
+                return {"statusCode": 400, "headers": CORS, "body": json.dumps({"error": "Бронь не доступна для этого букета"})}
+            if b[1] != "active":
+                return {"statusCode": 400, "headers": CORS, "body": json.dumps({"error": "Букет недоступен"})}
+            if b[2] == user["id"]:
+                return {"statusCode": 400, "headers": CORS, "body": json.dumps({"error": "Нельзя бронировать свой букет"})}
+            if b[3]:
+                return {"statusCode": 400, "headers": CORS, "body": json.dumps({"error": "Букет уже забронирован"})}
+            with conn.cursor() as cur:
+                cur.execute(
+                    f"UPDATE {SCHEMA}.bouquets SET reserved_by = %s, reserve_until = NOW() + INTERVAL '{hours} hours' WHERE id = %s",
+                    (user["id"], bouquet_id)
+                )
+                cur.execute(
+                    f"INSERT INTO {SCHEMA}.messages (sender_id, receiver_id, text, bouquet_id) VALUES (%s, %s, %s, %s)",
+                    (user["id"], b[2], f"📌 Я хочу забронировать букет на {hours} часов. Ожидаю вашего подтверждения.", bouquet_id)
+                )
+            conn.commit()
+            return {"statusCode": 200, "headers": CORS, "body": json.dumps({"ok": True})}
+
+        # POST cancel_reserve — снять бронь
+        if action == "cancel_reserve" and method == "POST":
+            if not user:
+                return {"statusCode": 401, "headers": CORS, "body": json.dumps({"error": "Не авторизован"})}
+            bouquet_id = int(body.get("bouquet_id", 0))
+            with conn.cursor() as cur:
+                cur.execute(
+                    f"SELECT reserved_by, seller_id FROM {SCHEMA}.bouquets WHERE id = %s", (bouquet_id,)
+                )
+                b = cur.fetchone()
+            if not b:
+                return {"statusCode": 404, "headers": CORS, "body": json.dumps({"error": "Не найден"})}
+            if b[0] != user["id"] and b[1] != user["id"]:
+                return {"statusCode": 403, "headers": CORS, "body": json.dumps({"error": "Нет доступа"})}
+            with conn.cursor() as cur:
+                cur.execute(
+                    f"UPDATE {SCHEMA}.bouquets SET reserved_by = NULL, reserve_until = NULL WHERE id = %s",
+                    (bouquet_id,)
+                )
+            conn.commit()
+            return {"statusCode": 200, "headers": CORS, "body": json.dumps({"ok": True})}
 
         # POST bid
         if action == "bid" and method == "POST":

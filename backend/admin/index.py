@@ -135,6 +135,85 @@ def handler(event: dict, context) -> dict:
                 "completed_orders": completed_orders,
             })}
 
+        # GET subscriptions — список подписок магазинов
+        if action == "subscriptions":
+            with conn.cursor() as cur:
+                cur.execute(
+                    f"SELECT ss.id, ss.user_id, ss.plan, ss.status, ss.started_at, ss.expires_at, ss.banner_addon, "
+                    f"u.name, u.email, u.phone, "
+                    f"sp.shop_name, sp.logo_url "
+                    f"FROM {SCHEMA}.shop_subscriptions ss "
+                    f"JOIN {SCHEMA}.users u ON u.id = ss.user_id "
+                    f"LEFT JOIN {SCHEMA}.shop_profiles sp ON sp.user_id = ss.user_id "
+                    f"ORDER BY ss.created_at DESC LIMIT 100"
+                )
+                rows = cur.fetchall()
+            items = [{
+                "id": r[0], "user_id": r[1], "plan": r[2], "status": r[3],
+                "started_at": str(r[4]), "expires_at": str(r[5]) if r[5] else None,
+                "banner_addon": bool(r[6]), "user_name": r[7], "user_email": r[8],
+                "user_phone": r[9], "shop_name": r[10], "logo_url": r[11]
+            } for r in rows]
+            return {"statusCode": 200, "headers": CORS, "body": json.dumps({"subscriptions": items})}
+
+        # POST activate_subscription — активировать подписку магазину
+        if action == "activate_subscription" and method == "POST":
+            target_user_id = int(body.get("user_id", 0))
+            plan = body.get("plan", "basic")
+            months = int(body.get("months", 1))
+            banner_addon = bool(body.get("banner_addon", False))
+            with conn.cursor() as cur:
+                cur.execute(
+                    f"INSERT INTO {SCHEMA}.shop_subscriptions (user_id, plan, status, expires_at, banner_addon) "
+                    f"VALUES (%s, %s, 'active', NOW() + INTERVAL '{months} months', %s) "
+                    f"ON CONFLICT (user_id) DO UPDATE SET plan = EXCLUDED.plan, status = 'active', "
+                    f"expires_at = NOW() + INTERVAL '{months} months', banner_addon = EXCLUDED.banner_addon",
+                    (target_user_id, plan, banner_addon)
+                )
+            conn.commit()
+            return {"statusCode": 200, "headers": CORS, "body": json.dumps({"ok": True, "message": "Подписка активирована"})}
+
+        # POST deactivate_subscription — деактивировать подписку
+        if action == "deactivate_subscription" and method == "POST":
+            target_user_id = int(body.get("user_id", 0))
+            with conn.cursor() as cur:
+                cur.execute(
+                    f"UPDATE {SCHEMA}.shop_subscriptions SET status = 'inactive' WHERE user_id = %s",
+                    (target_user_id,)
+                )
+            conn.commit()
+            return {"statusCode": 200, "headers": CORS, "body": json.dumps({"ok": True})}
+
+        # GET full_stats — расширенная статистика включая магазины и баннеры
+        if action == "full_stats":
+            with conn.cursor() as cur:
+                cur.execute(f"SELECT COALESCE(SUM(amount), 0) FROM {SCHEMA}.platform_earnings")
+                total_commission = float(cur.fetchone()[0])
+                cur.execute(f"SELECT COUNT(*) FROM {SCHEMA}.withdrawals WHERE status = 'pending'")
+                pending_count = cur.fetchone()[0]
+                cur.execute(f"SELECT COALESCE(SUM(amount), 0) FROM {SCHEMA}.withdrawals WHERE status = 'pending'")
+                pending_amount = float(cur.fetchone()[0])
+                cur.execute(f"SELECT COUNT(*) FROM {SCHEMA}.users")
+                users_count = cur.fetchone()[0]
+                cur.execute(f"SELECT COUNT(*) FROM {SCHEMA}.orders WHERE escrow_status = 'completed'")
+                completed_orders = cur.fetchone()[0]
+                cur.execute(f"SELECT COUNT(*) FROM {SCHEMA}.shop_subscriptions WHERE status = 'active'")
+                active_shops = cur.fetchone()[0]
+                cur.execute(f"SELECT COUNT(*) FROM {SCHEMA}.banners WHERE is_active = TRUE")
+                active_banners = cur.fetchone()[0]
+                cur.execute(f"SELECT COUNT(*) FROM {SCHEMA}.banner_clicks WHERE clicked_at > NOW() - INTERVAL '30 days'")
+                banner_clicks_month = cur.fetchone()[0]
+            return {"statusCode": 200, "headers": CORS, "body": json.dumps({
+                "total_commission": total_commission,
+                "pending_count": pending_count,
+                "pending_amount": pending_amount,
+                "users_count": users_count,
+                "completed_orders": completed_orders,
+                "active_shops": active_shops,
+                "active_banners": active_banners,
+                "banner_clicks_month": banner_clicks_month,
+            })}
+
         return {"statusCode": 400, "headers": CORS, "body": json.dumps({"error": "Unknown action"})}
     finally:
         conn.close()
