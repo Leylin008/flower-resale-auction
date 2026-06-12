@@ -1253,11 +1253,22 @@ function ShopsScreen({ user }: { user: User | null }) {
               </div>
               <div className="p-3">
                 <p className="text-white text-sm font-medium truncate">{b.title}</p>
-                <p className="gradient-text font-oswald font-bold mt-1">
-                  {formatPrice(b.sale_type === "fixed" ? b.fixed_price : b.current_price)}
-                </p>
-                {b.sale_type === "auction" && b.bids_count > 0 && (
-                  <p className="text-white/30 text-xs mt-0.5">{b.bids_count} ставок</p>
+                {b.sale_type === "fixed" || b.sale_type === "reserve" ? (
+                  <div className="mt-1">
+                    <p className="gradient-text font-oswald font-bold">
+                      {formatPrice(Math.round((b.fixed_price || 0) * 1.025))}
+                    </p>
+                    <p className="text-white/30 text-xs">продавец: {formatPrice(b.fixed_price)}</p>
+                  </div>
+                ) : (
+                  <>
+                    <p className="gradient-text font-oswald font-bold mt-1">
+                      {formatPrice(b.current_price)}
+                    </p>
+                    {b.bids_count > 0 && (
+                      <p className="text-white/30 text-xs mt-0.5">{b.bids_count} ставок</p>
+                    )}
+                  </>
                 )}
               </div>
             </div>
@@ -1609,7 +1620,12 @@ function SellScreen({ user }: { user: User | null }) {
             ))}
           </div>
           <div className="glass rounded-2xl p-4 mb-4" style={{ border: "1px solid rgba(255,61,139,0.2)" }}>
-            {[["Комиссия платформы", "12% от суммы"], ["Выплата продавцу", "после подтверждения"], ["Передача букета", "лично, без курьера"], ["Способы вывода", "Карта, СБП, кошелёк"]].map(([k, v]) => (
+            {[
+              ["Комиссия платформы", saleType === "auction" ? "15% (аукцион)" : "5% (фикс./бронь)"],
+              ["Выплата продавцу", "после подтверждения"],
+              ["Передача букета", "лично, без курьера"],
+              ["Способы вывода", "Карта, СБП, кошелёк"]
+            ].map(([k, v]) => (
               <div key={k} className="flex justify-between text-sm mb-2 last:mb-0">
                 <span className="text-white/40">{k}</span>
                 <span className="text-white/70">{v}</span>

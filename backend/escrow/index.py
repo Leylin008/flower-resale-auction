@@ -24,8 +24,10 @@ import psycopg2
 from datetime import datetime, timedelta
 
 SCHEMA = os.environ.get("MAIN_DB_SCHEMA", "t_p84229990_flower_resale_auctio")
-COMMISSION = 0.15        # 15% — комиссия платформы
-YOOKASSA_FEE = 0.055    # 5.5% — комиссия ЮКассы (вычитается из поступившей суммы)
+COMMISSION = 0.15           # 15% — комиссия платформы (аукцион)
+COMMISSION_SHOP = 0.05      # 5% — комиссия платформы (магазин: фикс. цена / бронь)
+YOOKASSA_FEE = 0.055        # 5.5% — комиссия ЮКассы (аукцион: вычитается из поступившей суммы)
+YOOKASSA_FEE_SHOP = 0.025   # 2.5% — комиссия ЮКассы для магазина (включается в цену для покупателя)
 AUTO_CONFIRM_HOURS = 48
 
 CORS = {
@@ -82,40 +84,81 @@ def handler(event: dict, context) -> dict:
             bouquet_id = int(body.get("bouquet_id", 0))
             with conn.cursor() as cur:
                 cur.execute(
-                    f"SELECT id, seller_id, current_price, status, title FROM {SCHEMA}.bouquets WHERE id = %s",
+                    f"SELECT id, seller_id, current_price, status, title, sale_type, fixed_price "
+                    f"FROM {SCHEMA}.bouquets WHERE id = %s",
                     (bouquet_id,)
                 )
                 b = cur.fetchone()
             if not b:
                 return {"statusCode": 404, "headers": CORS, "body": json.dumps({"error": "Букет не найден"})}
-            if b[3] != "won":
-                return {"statusCode": 400, "headers": CORS, "body": json.dumps({"error": "Аукцион ещё не завершён"})}
+
+            sale_type = b[5] or "auction"
+            fixed_price = float(b[6]) if b[6] else None
+
+            # Аукцион: ждём статус "won"; магазин (fixed/reserve): должен быть "active"
+            if sale_type == "auction":
+                if b[3] != "won":
+                    return {"statusCode": 400, "headers": CORS, "body": json.dumps({"error": "Аукцион ещё не завершён"})}
+            else:
+                if b[3] != "active":
+                    return {"statusCode": 400, "headers": CORS, "body": json.dumps({"error": "Букет недоступен для покупки"})}
+                if not fixed_price:
+                    return {"statusCode": 400, "headers": CORS, "body": json.dumps({"error": "Цена не указана"})}
+
             if b[1] == user["id"]:
                 return {"statusCode": 400, "headers": CORS, "body": json.dumps({"error": "Нельзя купить свой букет"})}
 
-            amount = float(b[2])
-            # Из суммы вычитаем комиссию ЮКассы, затем берём комиссию платформы от остатка
-            yookassa_fee = round(amount * YOOKASSA_FEE, 2)
-            net_after_yookassa = round(amount - yookassa_fee, 2)
-            platform_commission = round(net_after_yookassa * COMMISSION, 2)
-            commission = round(yookassa_fee + platform_commission, 2)  # итоговая комиссия в заказе
+            if sale_type == "auction":
+                # Аукцион: ЮКасса вычитается из суммы ставки, затем платформа 15% от остатка
+                base = float(b[2])
+                yookassa_fee = round(base * YOOKASSA_FEE, 2)
+                net_after_yookassa = round(base - yookassa_fee, 2)
+                platform_commission = round(net_after_yookassa * COMMISSION, 2)
+                commission = round(yookassa_fee + platform_commission, 2)
+                amount = base  # покупатель платит цену ставки
+            else:
+                # Магазин (fixed/reserve): ЮКасса включена в цену для покупателя (+2.5%)
+                # Продавец получает fixed_price полностью, платформа берёт 5% от fixed_price
+                base = fixed_price
+                amount = round(base * (1 + YOOKASSA_FEE_SHOP), 2)  # покупатель платит больше
+                platform_commission = round(base * COMMISSION_SHOP, 2)
+                commission = platform_commission  # ЮКасса уже в разнице amount - base
 
             with conn.cursor() as cur:
-                # Проверяем нет ли уже заказа
+                # Проверяем нет ли уже активного заказа на этот букет
                 cur.execute(
-                    f"SELECT id FROM {SCHEMA}.orders WHERE bouquet_id = %s",
+                    f"SELECT id FROM {SCHEMA}.orders WHERE bouquet_id = %s AND escrow_status NOT IN ('cancelled', 'archived')",
                     (bouquet_id,)
                 )
                 if cur.fetchone():
                     return {"statusCode": 409, "headers": CORS, "body": json.dumps({"error": "Заказ уже создан"})}
+
+                # seller_amount: сколько получит продавец
+                if sale_type == "auction":
+                    seller_amount = round(amount - commission, 2)
+                else:
+                    seller_amount = base  # fixed_price — продавец получает полную цену
+
                 cur.execute(
-                    f"INSERT INTO {SCHEMA}.orders (bouquet_id, buyer_id, seller_id, amount, commission, escrow_status) "
-                    f"VALUES (%s, %s, %s, %s, %s, 'waiting_payment') RETURNING id",
-                    (bouquet_id, user["id"], b[1], amount, commission)
+                    f"INSERT INTO {SCHEMA}.orders (bouquet_id, buyer_id, seller_id, amount, commission, escrow_status, seller_amount, sale_type) "
+                    f"VALUES (%s, %s, %s, %s, %s, 'waiting_payment', %s, %s) RETURNING id",
+                    (bouquet_id, user["id"], b[1], amount, commission, seller_amount, sale_type)
                 )
                 order_id = cur.fetchone()[0]
+
+                # Для магазина сразу помечаем букет как зарезервированный
+                if sale_type != "auction":
+                    cur.execute(
+                        f"UPDATE {SCHEMA}.bouquets SET status = 'reserved' WHERE id = %s",
+                        (bouquet_id,)
+                    )
             conn.commit()
-            return {"statusCode": 200, "headers": CORS, "body": json.dumps({"order_id": order_id, "amount": amount, "commission": commission})}
+            return {"statusCode": 200, "headers": CORS, "body": json.dumps({
+                "order_id": order_id,
+                "amount": amount,
+                "commission": commission,
+                "sale_type": sale_type,
+            })}
 
         # Оплатить заказ (деньги замораживаются)
         if action == "pay" and method == "POST":
@@ -230,7 +273,7 @@ def handler(event: dict, context) -> dict:
             order_id = int(body.get("order_id", 0))
             with conn.cursor() as cur:
                 cur.execute(
-                    f"SELECT o.amount, o.commission, o.escrow_status, o.buyer_id, o.seller_id "
+                    f"SELECT o.amount, o.commission, o.escrow_status, o.buyer_id, o.seller_id, o.seller_amount "
                     f"FROM {SCHEMA}.orders o WHERE o.id = %s", (order_id,)
                 )
                 order = cur.fetchone()
@@ -243,7 +286,8 @@ def handler(event: dict, context) -> dict:
 
             amount = float(order[0])
             commission = float(order[1])
-            seller_gets = round(amount - commission, 2)
+            # seller_amount — точная сумма продавцу (для магазина = fixed_price, для аукциона = amount - commission)
+            seller_gets = float(order[5]) if order[5] else round(amount - commission, 2)
 
             with conn.cursor() as cur:
                 # Деньги продавцу (минус комиссия)
@@ -264,6 +308,12 @@ def handler(event: dict, context) -> dict:
                 cur.execute(
                     f"UPDATE {SCHEMA}.users SET purchases_count = purchases_count + 1 WHERE id = %s",
                     (user["id"],)
+                )
+                # Помечаем букет как проданный
+                cur.execute(
+                    f"UPDATE {SCHEMA}.bouquets SET status = 'sold' "
+                    f"WHERE id = (SELECT bouquet_id FROM {SCHEMA}.orders WHERE id = %s)",
+                    (order_id,)
                 )
                 # Уведомление продавцу в чат
                 cur.execute(
