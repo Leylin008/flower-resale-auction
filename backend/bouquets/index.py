@@ -258,7 +258,7 @@ def handler(event: dict, context) -> dict:
                 return {"statusCode": 400, "headers": CORS, "body": json.dumps({"error": "Укажите название"})}
             if sale_type not in ("auction", "fixed"):
                 return {"statusCode": 400, "headers": CORS, "body": json.dumps({"error": "Неверный тип продажи"})}
-            ends_at_sql = f"NOW() + INTERVAL '{duration_hours} hours'" if sale_type == "auction" else "NULL"
+            ends_at_sql = f"NOW() + INTERVAL '{duration_hours} hours'" if sale_type == "auction" else "NOW() + INTERVAL '9999 days'"
             with conn.cursor() as cur:
                 cur.execute(
                     f"INSERT INTO {SCHEMA}.bouquets "
