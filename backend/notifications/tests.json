@@ -1,0 +1,11 @@
+{
+  "tests": [
+    {
+      "name": "List unauthorized",
+      "method": "GET",
+      "path": "/?action=list",
+      "expectedStatus": 401,
+      "bodyMatcher": "partial"
+    }
+  ]
+}

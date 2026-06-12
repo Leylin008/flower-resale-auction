@@ -11,6 +11,7 @@ const URLS = {
   payment: "https://functions.poehali.dev/87035cc4-779f-49b8-a18c-1ed92268c9e4",
   shops: "https://functions.poehali.dev/4e696c75-7ccd-435f-bcad-c1cc0b4ac528",
   banners: "https://functions.poehali.dev/7efb814d-6696-46cc-99c4-b9eb27ac3f11",
+  notifications: "https://functions.poehali.dev/4e31bfb6-d58a-479b-a49c-c8f515de2d4c",
 };
 
 export async function fetchAllCities(): Promise<string[]> {
@@ -123,6 +124,16 @@ export const bouquetsApi = {
   favorites: () => req(`${URLS.bouquets}/?action=favorites`),
   cancel: (bouquet_id: number) =>
     req(`${URLS.bouquets}/?action=cancel`, { method: "POST", body: JSON.stringify({ action: "cancel", bouquet_id }) }),
+};
+
+// NOTIFICATIONS
+export const notificationsApi = {
+  list: (limit?: number) => req(`${URLS.notifications}/?action=list${limit ? `&limit=${limit}` : ""}`),
+  read: (id?: number) => req(`${URLS.notifications}/?action=read`, { method: "POST", body: JSON.stringify({ action: "read", ...(id ? { id } : {}) }) }),
+  subscribePush: (sub: { endpoint: string; p256dh?: string; auth?: string }) =>
+    req(`${URLS.notifications}/?action=subscribe_push`, { method: "POST", body: JSON.stringify({ action: "subscribe_push", ...sub }) }),
+  send: (data: { user_id?: number; broadcast?: boolean; type: string; title: string; body: string; data?: unknown }) =>
+    req(`${URLS.notifications}/?action=send`, { method: "POST", body: JSON.stringify({ action: "send", ...data }) }),
 };
 
 // SHOPS

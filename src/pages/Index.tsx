@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import Icon from "@/components/ui/icon";
-import { authApi, bouquetsApi, profileApi, uploadApi, escrowApi, oauthApi, adminApi, paymentApi, shopsApi, bannersApi } from "@/lib/api";
+import { authApi, bouquetsApi, profileApi, uploadApi, escrowApi, oauthApi, adminApi, paymentApi, shopsApi, bannersApi, notificationsApi } from "@/lib/api";
 import AdBanners from "@/components/AdBanners";
+import NotificationBell from "@/components/NotificationBell";
 import { OnboardingTour, useOnboarding } from "@/components/OnboardingTour";
 import { useCities } from "@/lib/cities";
 import Partners from "@/pages/Partners";
@@ -2549,6 +2550,10 @@ function ProfileScreen({ user, onLogout, onUpdate, onStartTour }: { user: User |
                 ВЫВЕСТИ
               </button>
             </div>
+            <div className="flex items-center gap-1.5 mt-2">
+              <Icon name="Clock" size={12} className="text-white/25 flex-shrink-0" />
+              <p className="text-white/25 text-xs">Выплата в течение 24 часов после подачи заявки</p>
+            </div>
 
             {/* История выводов */}
             {withdrawals.length > 0 && (
@@ -2805,6 +2810,14 @@ function ProfileScreen({ user, onLogout, onUpdate, onStartTour }: { user: User |
                 {shopStatus.subscription?.expires_at && (
                   <p className="text-white/40 text-xs">До {new Date(shopStatus.subscription.expires_at).toLocaleDateString("ru-RU")}</p>
                 )}
+                <div className="flex items-center gap-1.5 mt-2 pt-2" style={{ borderTop: "1px solid rgba(255,255,255,0.05)" }}>
+                  <Icon name="RefreshCw" size={11} className="text-purple-400 flex-shrink-0" />
+                  <p className="text-white/35 text-xs">Автопродление активно — напишите нам для отмены</p>
+                </div>
+                <a href="mailto:flowerflip@flowerflip.ru?subject=Отмена автопродления подписки"
+                  className="text-white/20 text-xs hover:text-white/40 transition-colors block mt-1 text-right">
+                  Отменить автопродление →
+                </a>
               </div>
               <div className="glass rounded-2xl p-4">
                 <p className="text-white/50 text-sm font-medium mb-3">Профиль магазина</p>
@@ -3432,12 +3445,78 @@ function AdminScreen({ user }: { user: User | null }) {
         </div>
       )}
 
+      {/* Рассылка уведомлений */}
+      <div className="glass rounded-2xl p-4" style={{ border: "1px solid rgba(255,61,139,0.15)" }}>
+        <p className="text-white/50 text-sm font-medium mb-3">Отправить уведомление</p>
+        <AdminNotifyForm />
+      </div>
+
       <a href="https://flowerflip.ru/partners" target="_blank" rel="noreferrer"
         className="flex items-center gap-2 glass rounded-2xl px-4 py-3 mt-4 text-sm font-medium"
         style={{ color: "#a855f7", border: "1px solid rgba(168,85,247,0.2)" }}>
         <Icon name="Presentation" size={16} />
         Страница для партнёров
       </a>
+    </div>
+  );
+}
+
+function AdminNotifyForm() {
+  const [title, setTitle] = useState("");
+  const [body, setBody] = useState("");
+  const [type, setType] = useState("info");
+  const [broadcast, setBroadcast] = useState(true);
+  const [userId, setUserId] = useState("");
+  const [msg, setMsg] = useState("");
+  const [sending, setSending] = useState(false);
+
+  const send = async () => {
+    if (!title || !body) { setMsg("Заполните заголовок и текст"); return; }
+    setSending(true); setMsg("");
+    const r = await notificationsApi.send({
+      type,
+      title,
+      body,
+      ...(broadcast ? { broadcast: true } : { user_id: parseInt(userId) }),
+    });
+    setSending(false);
+    setMsg(r.ok ? `Отправлено: ${r.data.sent} получателей` : (r.data.error || "Ошибка"));
+    if (r.ok) { setTitle(""); setBody(""); }
+  };
+
+  return (
+    <div className="space-y-2">
+      <div className="flex gap-2">
+        <select value={type} onChange={e => setType(e.target.value)}
+          className="glass rounded-xl px-3 py-2.5 text-white/70 text-xs outline-none bg-transparent flex-shrink-0">
+          <option value="info" className="bg-gray-900">Инфо</option>
+          <option value="system" className="bg-gray-900">Системное</option>
+          <option value="banner" className="bg-gray-900">Реклама</option>
+          <option value="sale" className="bg-gray-900">Продажа</option>
+          <option value="shop" className="bg-gray-900">Магазины</option>
+        </select>
+        <button onClick={() => setBroadcast(b => !b)}
+          className="flex-1 rounded-xl px-3 py-2.5 text-xs font-medium transition-all"
+          style={broadcast ? { background: "rgba(255,61,139,0.2)", color: "#ff3d8b" } : { background: "rgba(255,255,255,0.05)", color: "rgba(255,255,255,0.4)" }}>
+          {broadcast ? "Всем пользователям" : "Конкретному ID"}
+        </button>
+      </div>
+      {!broadcast && (
+        <input value={userId} onChange={e => setUserId(e.target.value)} type="number"
+          className="glass w-full rounded-xl px-4 py-2.5 text-white placeholder:text-white/30 text-sm outline-none"
+          placeholder="ID пользователя" />
+      )}
+      <input value={title} onChange={e => setTitle(e.target.value)}
+        className="glass w-full rounded-xl px-4 py-2.5 text-white placeholder:text-white/30 text-sm outline-none"
+        placeholder="Заголовок уведомления" />
+      <textarea value={body} onChange={e => setBody(e.target.value)}
+        className="glass w-full rounded-xl px-4 py-2.5 text-white placeholder:text-white/30 text-sm outline-none resize-none"
+        placeholder="Текст уведомления" rows={2} />
+      {msg && <p className={`text-xs ${msg.includes("Отправлено") ? "text-green-400" : "text-red-400"}`}>{msg}</p>}
+      <button onClick={send} disabled={sending}
+        className="btn-gradient w-full rounded-xl py-2.5 text-sm font-oswald tracking-wide disabled:opacity-50">
+        {sending ? "ОТПРАВКА..." : "ОТПРАВИТЬ"}
+      </button>
     </div>
   );
 }
@@ -3588,6 +3667,7 @@ export default function Index() {
               <Icon name="Store" size={14} />
               <span className="font-oswald text-xs font-bold">Магазины</span>
             </button>
+            <NotificationBell userId={user.id} />
             <div className="glass px-3 py-1.5 rounded-xl">
               <span className="gradient-text font-oswald text-sm font-bold">{formatPrice(user.balance)}</span>
             </div>
