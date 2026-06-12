@@ -183,7 +183,7 @@ def handler(event: dict, context) -> dict:
             with conn.cursor() as cur:
                 cur.execute(
                     f"SELECT sp.id, sp.user_id, sp.shop_name, sp.logo_url, sp.description, "
-                    f"u.rating, u.reviews_count, u.sales_count "
+                    f"u.rating, u.reviews_count, u.sales_count, u.city "
                     f"FROM {SCHEMA}.shop_profiles sp "
                     f"JOIN {SCHEMA}.users u ON u.id = sp.user_id "
                     f"JOIN {SCHEMA}.shop_subscriptions ss ON ss.user_id = sp.user_id "
@@ -193,7 +193,8 @@ def handler(event: dict, context) -> dict:
                 rows = cur.fetchall()
             shops = [{
                 "id": r[0], "user_id": r[1], "shop_name": r[2], "logo_url": r[3],
-                "description": r[4], "rating": float(r[5]), "reviews_count": r[6], "sales_count": r[7]
+                "description": r[4], "rating": float(r[5]), "reviews_count": r[6], "sales_count": r[7],
+                "city": r[8]
             } for r in rows]
             return {"statusCode": 200, "headers": CORS, "body": json.dumps({"shops": shops})}
 

@@ -38,7 +38,7 @@ interface Message { id: number; sender_id: number; text: string; created_at: str
 
 const TABS = [
   { id: "auctions", label: "Аукционы", icon: "Zap" },
-  { id: "shops", label: "Магазины", icon: "Store" },
+  { id: "catalog", label: "Каталог", icon: "Grid3X3" },
   { id: "sell", label: "Продать", icon: "PlusCircle" },
   { id: "deals", label: "Сделки", icon: "Handshake" },
   { id: "profile", label: "Профиль", icon: "User" },
@@ -1152,11 +1152,13 @@ function CatalogScreen({ user }: { user: User | null }) {
 
 /* ─── SHOPS SCREEN ──────────────────────────────────────── */
 function ShopsScreen({ user }: { user: User | null }) {
-  const [shops, setShops] = useState<{ id: number; user_id: number; shop_name: string; logo_url?: string; description?: string; rating: number; reviews_count: number; sales_count: number }[]>([]);
+  const [shops, setShops] = useState<{ id: number; user_id: number; shop_name: string; logo_url?: string; description?: string; rating: number; reviews_count: number; sales_count: number; city?: string }[]>([]);
   const [selected, setSelected] = useState<{ user_id: number; shop_name: string; logo_url?: string; description?: string; address?: string; phone?: string; rating: number; reviews_count: number } | null>(null);
   const [bouquets, setBouquets] = useState<{ id: number; title: string; image_urls: string[]; current_price?: number; fixed_price?: number; sale_type: string; status: string; bids_count: number; reserve_enabled: boolean }[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingBouquets, setLoadingBouquets] = useState(false);
+  const [cityFilter, setCityFilter] = useState("");
+  const cities = useCities();
 
   useEffect(() => {
     setLoading(true);
@@ -1264,27 +1266,48 @@ function ShopsScreen({ user }: { user: User | null }) {
     </div>
   );
 
+  const filteredShops = cityFilter ? shops.filter(s => s.city === cityFilter) : shops;
+  const shopCities = [...new Set(shops.map(s => s.city).filter(Boolean))] as string[];
+
   return (
     <div className="animate-fade-in">
       <h2 className="font-oswald text-2xl font-bold text-white mb-1">Магазины</h2>
-      <p className="text-white/40 text-sm mb-5">Проверенные цветочные магазины на платформе</p>
+      <p className="text-white/40 text-sm mb-4">Проверенные цветочные магазины на платформе</p>
+
+      {/* Фильтр по городу */}
+      {shopCities.length > 1 && (
+        <div className="flex gap-2 mb-4 overflow-x-auto pb-1">
+          <button onClick={() => setCityFilter("")}
+            className="flex-shrink-0 px-3 py-1.5 rounded-xl text-xs font-medium transition-all"
+            style={!cityFilter ? { background: "var(--grad-main)", color: "#fff" } : { background: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.4)" }}>
+            Все города
+          </button>
+          {shopCities.map(c => (
+            <button key={c} onClick={() => setCityFilter(c)}
+              className="flex-shrink-0 px-3 py-1.5 rounded-xl text-xs font-medium transition-all"
+              style={cityFilter === c ? { background: "var(--grad-main)", color: "#fff" } : { background: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.4)" }}>
+              {c}
+            </button>
+          ))}
+        </div>
+      )}
 
       {loading ? (
         <div className="flex justify-center py-20">
           <div className="animate-spin rounded-full w-8 h-8 border-2 border-pink-400 border-t-transparent" />
         </div>
-      ) : shops.length === 0 ? (
+      ) : filteredShops.length === 0 ? (
         <div className="text-center py-20">
           <span className="text-6xl block mb-4">🏪</span>
-          <p className="font-oswald text-xl text-white mb-2">Магазинов пока нет</p>
+          <p className="font-oswald text-xl text-white mb-2">{cityFilter ? `Магазинов в ${cityFilter} нет` : "Магазинов пока нет"}</p>
           <p className="text-white/40 text-sm">Первые магазины появятся совсем скоро</p>
-          {user && (
+          {user && !cityFilter && (
             <p className="text-white/30 text-xs mt-4">Хочешь открыть свой? Перейди в Профиль → Магазин</p>
           )}
         </div>
       ) : (
         <div className="space-y-3">
-          {shops.map(s => (
+          {filteredShops.map(s => (
             <button key={s.id} onClick={() => openShop(s.user_id)}
               className="glass rounded-2xl p-4 w-full text-left transition-all hover:scale-[1.01] active:scale-[0.99]"
               style={{ border: "1px solid rgba(255,255,255,0.07)" }}>
@@ -3442,8 +3465,16 @@ export default function Index() {
             <span className="text-2xl animate-float" style={{ display: "inline-block" }}>🌸</span>
             <span className="font-oswald text-xl font-bold shimmer-text">FlowerFlip</span>
           </div>
-          <div className="glass px-3 py-1.5 rounded-xl">
-            <span className="gradient-text font-oswald text-sm font-bold">{formatPrice(user.balance)}</span>
+          <div className="flex items-center gap-2">
+            <button onClick={() => setActiveTab("shops")}
+              className="glass px-3 py-1.5 rounded-xl flex items-center gap-1.5 transition-all"
+              style={activeTab === "shops" ? { border: "1px solid rgba(168,85,247,0.5)", color: "#a855f7" } : { color: "rgba(255,255,255,0.4)" }}>
+              <Icon name="Store" size={14} />
+              <span className="font-oswald text-xs font-bold">Магазины</span>
+            </button>
+            <div className="glass px-3 py-1.5 rounded-xl">
+              <span className="gradient-text font-oswald text-sm font-bold">{formatPrice(user.balance)}</span>
+            </div>
           </div>
         </div>
       </header>
@@ -3465,8 +3496,9 @@ export default function Index() {
       )}
 
       <main className="max-w-lg mx-auto px-4 py-5 pb-28">
-        {(activeTab === "auctions" || activeTab === "shops") && <AdBanners />}
+        {(activeTab === "auctions" || activeTab === "catalog" || activeTab === "shops") && <AdBanners />}
         {activeTab === "auctions" && <AuctionsScreen onBid={setBidModal} user={user} />}
+        {activeTab === "catalog" && <CatalogScreen user={user} />}
         {activeTab === "shops" && <ShopsScreen user={user} />}
         {activeTab === "sell" && <SellScreen user={user} />}
         {activeTab === "deals" && <DealsScreen user={user} onPaySuccess={refreshUser} />}
