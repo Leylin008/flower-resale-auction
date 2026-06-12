@@ -964,6 +964,7 @@ function AuctionsScreen({ onBid, user }: { onBid: (b: Bouquet) => void; user: Us
   const load = useCallback(async () => {
     const r = await bouquetsApi.list({
       status: "active", sort: "ends_at",
+      sale_type: "auction",
       city: city || undefined,
       district: district || undefined,
     });
@@ -1158,16 +1159,22 @@ function ShopsScreen({ user }: { user: User | null }) {
   const [bouquets, setBouquets] = useState<{ id: number; title: string; image_urls: string[]; current_price?: number; fixed_price?: number; sale_type: string; status: string; bids_count: number; reserve_enabled: boolean }[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingBouquets, setLoadingBouquets] = useState(false);
-  const [cityFilter, setCityFilter] = useState("");
+  const [cityFilter, setCityFilter] = useState(user?.city || "");
+  const [shopCitiesFromApi, setShopCitiesFromApi] = useState<string[]>([]);
   const cities = useCities();
 
-  useEffect(() => {
+  const loadShops = useCallback((city?: string) => {
     setLoading(true);
-    shopsApi.list().then(r => {
-      if (r.ok) setShops(r.data.shops);
+    shopsApi.list(city || undefined).then(r => {
+      if (r.ok) {
+        setShops(r.data.shops || []);
+        if (r.data.cities?.length) setShopCitiesFromApi(r.data.cities);
+      }
       setLoading(false);
     });
   }, []);
+
+  useEffect(() => { loadShops(cityFilter || undefined); }, [cityFilter, loadShops]);
 
   const openShop = async (userId: number) => {
     const r = await shopsApi.profile(userId);
@@ -1278,37 +1285,50 @@ function ShopsScreen({ user }: { user: User | null }) {
     </div>
   );
 
-  const filteredShops = cityFilter ? shops.filter(s => s.city === cityFilter) : shops;
-  const shopCities = [...new Set(shops.map(s => s.city).filter(Boolean))] as string[];
+  const allShopCities = shopCitiesFromApi.length > 0
+    ? shopCitiesFromApi
+    : [...new Set(shops.map(s => s.city).filter(Boolean))] as string[];
 
   return (
     <div className="animate-fade-in">
       <h2 className="font-oswald text-2xl font-bold text-white mb-1">Магазины</h2>
-      <p className="text-white/40 text-sm mb-4">Проверенные цветочные магазины на платформе</p>
+      <p className="text-white/40 text-sm mb-3">Проверенные цветочные магазины на платформе</p>
 
       {/* Фильтр по городу */}
-      {shopCities.length > 1 && (
-        <div className="flex gap-2 mb-4 overflow-x-auto pb-1">
+      <div className="glass rounded-2xl p-3 mb-4">
+        <div className="flex items-center gap-2 mb-2">
+          <Icon name="MapPin" size={14} className="text-pink-400 flex-shrink-0" />
+          <span className="text-white/50 text-xs">Город</span>
+          {cityFilter && (
+            <button onClick={() => setCityFilter("")} className="ml-auto text-white/30 hover:text-white/60 transition-colors">
+              <Icon name="X" size={12} />
+            </button>
+          )}
+        </div>
+        <div className="flex gap-1.5 flex-wrap">
           <button onClick={() => setCityFilter("")}
             className="flex-shrink-0 px-3 py-1.5 rounded-xl text-xs font-medium transition-all"
             style={!cityFilter ? { background: "var(--grad-main)", color: "#fff" } : { background: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.4)" }}>
-            Все города
+            Все
           </button>
-          {shopCities.map(c => (
+          {allShopCities.map(c => (
             <button key={c} onClick={() => setCityFilter(c)}
               className="flex-shrink-0 px-3 py-1.5 rounded-xl text-xs font-medium transition-all"
               style={cityFilter === c ? { background: "var(--grad-main)", color: "#fff" } : { background: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.4)" }}>
               {c}
             </button>
           ))}
+          {allShopCities.length === 0 && (
+            <span className="text-white/25 text-xs py-1.5">Города появятся когда откроются магазины</span>
+          )}
         </div>
-      )}
+      </div>
 
       {loading ? (
         <div className="flex justify-center py-20">
           <div className="animate-spin rounded-full w-8 h-8 border-2 border-pink-400 border-t-transparent" />
         </div>
-      ) : filteredShops.length === 0 ? (
+      ) : shops.length === 0 ? (
         <div className="text-center py-20">
           <span className="text-6xl block mb-4">🏪</span>
           <p className="font-oswald text-xl text-white mb-2">{cityFilter ? `Магазинов в ${cityFilter} нет` : "Магазинов пока нет"}</p>
@@ -1319,7 +1339,7 @@ function ShopsScreen({ user }: { user: User | null }) {
         </div>
       ) : (
         <div className="space-y-3">
-          {filteredShops.map(s => (
+          {shops.map(s => (
             <button key={s.id} onClick={() => openShop(s.user_id)}
               className="glass rounded-2xl p-4 w-full text-left transition-all hover:scale-[1.01] active:scale-[0.99]"
               style={{ border: "1px solid rgba(255,255,255,0.07)" }}>
@@ -1338,6 +1358,12 @@ function ShopsScreen({ user }: { user: User | null }) {
                     ))}
                     <span className="text-white/40 text-xs ml-1">{s.rating?.toFixed(1)}</span>
                   </div>
+                  {s.city && (
+                    <div className="flex items-center gap-1 mt-0.5">
+                      <Icon name="MapPin" size={9} className="text-pink-400 flex-shrink-0" />
+                      <span className="text-white/35 text-xs">{s.city}</span>
+                    </div>
+                  )}
                   {s.description && <p className="text-white/40 text-xs mt-0.5 truncate">{s.description}</p>}
                 </div>
                 <div className="text-right flex-shrink-0">
@@ -2389,12 +2415,18 @@ function ProfileScreen({ user, onLogout, onUpdate, onStartTour }: { user: User |
   const [shopDesc, setShopDesc] = useState("");
   const [shopAddress, setShopAddress] = useState("");
   const [shopPhone, setShopPhone] = useState("");
+  const [shopCity, setShopCity] = useState("");
   const [shopMonths, setShopMonths] = useState(1);
   const [shopLogoUrl, setShopLogoUrl] = useState("");
   const [shopLogoUploading, setShopLogoUploading] = useState(false);
   const [shopSaving, setShopSaving] = useState(false);
   const [shopMsg, setShopMsg] = useState("");
   const shopLogoRef = useRef<HTMLInputElement>(null);
+  // Адреса (мульти-локации)
+  const [shopLocations, setShopLocations] = useState<{ id: number; city: string; address: string; phone?: string; is_main: boolean }[]>([]);
+  const [locForm, setLocForm] = useState<{ id?: number; city: string; address: string; phone: string; is_main: boolean } | null>(null);
+  const [locMsg, setLocMsg] = useState("");
+  const [locSaving, setLocSaving] = useState(false);
   const [emailMsg, setEmailMsg] = useState("");
   const [emailSaving, setEmailSaving] = useState(false);
 
@@ -2470,8 +2502,12 @@ function ProfileScreen({ user, onLogout, onUpdate, onStartTour }: { user: User |
           if (r.data.profile) {
             setShopName(r.data.profile.shop_name || "");
             setShopLogoUrl(r.data.profile.logo_url || "");
+            setShopCity(r.data.profile.city || "");
           }
         }
+      });
+      shopsApi.locations(user.id).then(r => {
+        if (r.ok) setShopLocations(r.data.locations || []);
       });
     }
   }, [tab, user, loadSales, loadWithdrawals]);
@@ -2933,7 +2969,8 @@ function ProfileScreen({ user, onLogout, onUpdate, onStartTour }: { user: User |
                   {([
                     { label: "Название магазина *", val: shopName, set: setShopName, placeholder: "Цветочный рай" },
                     { label: "Описание", val: shopDesc, set: setShopDesc, placeholder: "Продаём свежие букеты..." },
-                    { label: "Адрес", val: shopAddress, set: setShopAddress, placeholder: "ул. Цветочная, 1" },
+                    { label: "Основной город", val: shopCity, set: setShopCity, placeholder: "Москва" },
+                    { label: "Основной адрес", val: shopAddress, set: setShopAddress, placeholder: "ул. Цветочная, 1" },
                     { label: "Телефон магазина", val: shopPhone, set: setShopPhone, placeholder: "+7 999 000 00 00" },
                   ] as {label:string;val:string;set:(v:string)=>void;placeholder:string}[]).map(({ label, val, set, placeholder }) => (
                     <div key={label}>
@@ -2949,7 +2986,7 @@ function ProfileScreen({ user, onLogout, onUpdate, onStartTour }: { user: User |
                   onClick={async () => {
                     if (!shopName.trim()) { setShopMsg("Укажите название магазина"); return; }
                     setShopSaving(true); setShopMsg("");
-                    const r = await shopsApi.saveProfile({ shop_name: shopName, logo_url: shopLogoUrl || undefined, description: shopDesc || undefined, address: shopAddress || undefined, phone: shopPhone || undefined });
+                    const r = await shopsApi.saveProfile({ shop_name: shopName, logo_url: shopLogoUrl || undefined, description: shopDesc || undefined, address: shopAddress || undefined, phone: shopPhone || undefined, city: shopCity || undefined });
                     setShopSaving(false);
                     setShopMsg(r.ok ? "Сохранено!" : (r.data.error || "Ошибка"));
                   }}
@@ -2957,6 +2994,81 @@ function ProfileScreen({ user, onLogout, onUpdate, onStartTour }: { user: User |
                   className="btn-gradient w-full rounded-2xl py-3 mt-4 font-oswald tracking-wide disabled:opacity-50">
                   {shopSaving ? "СОХРАНЕНИЕ..." : "СОХРАНИТЬ МАГАЗИН"}
                 </button>
+
+                {/* Мульти-адреса магазина */}
+                <div className="mt-4 pt-4" style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="text-white/40 text-xs font-medium">ТОЧКИ ПРИСУТСТВИЯ</p>
+                    <button onClick={() => setLocForm({ city: "", address: "", phone: "", is_main: shopLocations.length === 0 })}
+                      className="flex items-center gap-1 text-pink-400 text-xs hover:text-pink-300 transition-colors">
+                      <Icon name="Plus" size={12} /> Добавить
+                    </button>
+                  </div>
+                  {shopLocations.length === 0 && !locForm && (
+                    <p className="text-white/25 text-xs">Добавьте адреса в разных городах</p>
+                  )}
+                  <div className="space-y-2">
+                    {shopLocations.map(loc => (
+                      <div key={loc.id} className="rounded-xl p-3 flex items-start justify-between gap-2"
+                        style={{ background: "rgba(255,255,255,0.04)" }}>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-1.5">
+                            <Icon name="MapPin" size={11} className="text-pink-400 flex-shrink-0" />
+                            <span className="text-white/70 text-xs font-medium">{loc.city}</span>
+                            {loc.is_main && <span className="text-xs px-1.5 py-0.5 rounded-full" style={{ background: "rgba(168,85,247,0.2)", color: "#a855f7" }}>Основная</span>}
+                          </div>
+                          <p className="text-white/50 text-xs mt-0.5 truncate">{loc.address}</p>
+                          {loc.phone && <p className="text-white/35 text-xs mt-0.5">{loc.phone}</p>}
+                        </div>
+                        <button onClick={() => setLocForm({ id: loc.id, city: loc.city, address: loc.address, phone: loc.phone || "", is_main: loc.is_main })}
+                          className="text-white/30 hover:text-white/60 transition-colors flex-shrink-0">
+                          <Icon name="Pencil" size={13} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+
+                  {locForm !== null && (
+                    <div className="mt-3 rounded-xl p-3 space-y-2" style={{ background: "rgba(255,255,255,0.04)" }}>
+                      <p className="text-white/50 text-xs font-medium">{locForm.id ? "Редактировать адрес" : "Новый адрес"}</p>
+                      {[
+                        { label: "Город *", val: locForm.city, key: "city" as const, placeholder: "Санкт-Петербург" },
+                        { label: "Адрес *", val: locForm.address, key: "address" as const, placeholder: "Невский пр., 10" },
+                        { label: "Телефон", val: locForm.phone, key: "phone" as const, placeholder: "+7 812 000 00 00" },
+                      ].map(f => (
+                        <div key={f.key}>
+                          <label className="text-white/35 text-xs mb-1 block">{f.label}</label>
+                          <input value={f.val} onChange={e => setLocForm(p => p ? { ...p, [f.key]: e.target.value } : null)}
+                            className="glass w-full rounded-xl px-3 py-2 text-white placeholder:text-white/25 text-xs outline-none"
+                            placeholder={f.placeholder} />
+                        </div>
+                      ))}
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input type="checkbox" checked={locForm.is_main} onChange={e => setLocForm(p => p ? { ...p, is_main: e.target.checked } : null)} className="accent-pink-500" />
+                        <span className="text-white/50 text-xs">Основная точка</span>
+                      </label>
+                      {locMsg && <p className={`text-xs ${locMsg.includes("ok") || locMsg.includes("Сохранено") ? "text-green-400" : "text-red-400"}`}>{locMsg}</p>}
+                      <div className="flex gap-2">
+                        <button onClick={() => { setLocForm(null); setLocMsg(""); }} className="glass rounded-xl px-3 py-2 text-white/40 text-xs flex-1">Отмена</button>
+                        <button onClick={async () => {
+                          if (!locForm.city.trim() || !locForm.address.trim()) { setLocMsg("Укажите город и адрес"); return; }
+                          setLocSaving(true); setLocMsg("");
+                          const r = await shopsApi.saveLocation({ id: locForm.id, city: locForm.city, address: locForm.address, phone: locForm.phone || undefined, is_main: locForm.is_main });
+                          setLocSaving(false);
+                          if (r.ok) {
+                            setLocMsg("Сохранено!");
+                            setLocForm(null);
+                            const lr = await shopsApi.locations(user.id);
+                            if (lr.ok) setShopLocations(lr.data.locations || []);
+                          } else setLocMsg(r.data.error || "Ошибка");
+                        }} disabled={locSaving}
+                          className="btn-gradient rounded-xl px-3 py-2 text-xs font-semibold flex-1 disabled:opacity-50">
+                          {locSaving ? "..." : "Сохранить"}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
               {shopStatus.subscription?.banner_addon ? (
                 <div className="glass rounded-2xl p-4" style={{ border: "1px solid rgba(255,61,139,0.2)" }}>

@@ -180,12 +180,16 @@ def handler(event: dict, context) -> dict:
 
             city_filter = qs.get("city")
             district_filter = qs.get("district")
+            sale_type_filter = qs.get("sale_type")
             if city_filter:
                 conditions.append("b.city = %s")
                 params.append(city_filter)
             if district_filter:
                 conditions.append("b.district = %s")
                 params.append(district_filter)
+            if sale_type_filter:
+                conditions.append("b.sale_type = %s")
+                params.append(sale_type_filter)
             where_sql = " AND ".join(conditions)
 
             cols = ["id","seller_id","seller_name","seller_rating","title","description","flowers",

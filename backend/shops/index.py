@@ -111,20 +111,103 @@ def handler(event: dict, context) -> dict:
             description = body.get("description", "").strip() or None
             address = body.get("address", "").strip() or None
             phone = body.get("phone", "").strip() or None
+            city = body.get("city", "").strip() or None
             if not shop_name:
                 return {"statusCode": 400, "headers": CORS, "body": json.dumps({"error": "Укажите название магазина"})}
             with conn.cursor() as cur:
                 cur.execute(
-                    f"INSERT INTO {SCHEMA}.shop_profiles (user_id, shop_name, logo_url, description, address, phone) "
-                    f"VALUES (%s, %s, %s, %s, %s, %s) "
+                    f"INSERT INTO {SCHEMA}.shop_profiles (user_id, shop_name, logo_url, description, address, phone, city) "
+                    f"VALUES (%s, %s, %s, %s, %s, %s, %s) "
                     f"ON CONFLICT (user_id) DO UPDATE SET shop_name = EXCLUDED.shop_name, logo_url = EXCLUDED.logo_url, "
-                    f"description = EXCLUDED.description, address = EXCLUDED.address, phone = EXCLUDED.phone "
+                    f"description = EXCLUDED.description, address = EXCLUDED.address, phone = EXCLUDED.phone, city = EXCLUDED.city "
                     f"RETURNING id",
-                    (user["id"], shop_name, logo_url, description, address, phone)
+                    (user["id"], shop_name, logo_url, description, address, phone, city)
                 )
                 profile_id = cur.fetchone()[0]
             conn.commit()
             return {"statusCode": 200, "headers": CORS, "body": json.dumps({"ok": True, "id": profile_id})}
+
+        # POST save_location — добавить/обновить адрес магазина в городе
+        if action == "save_location" and method == "POST":
+            if not user:
+                return {"statusCode": 401, "headers": CORS, "body": json.dumps({"error": "Не авторизован"})}
+            with conn.cursor() as cur:
+                cur.execute(f"SELECT id FROM {SCHEMA}.shop_profiles WHERE user_id = {user['id']}")
+                sp = cur.fetchone()
+            if not sp:
+                return {"statusCode": 404, "headers": CORS, "body": json.dumps({"error": "Создайте профиль магазина сначала"})}
+            shop_id = sp[0]
+            loc_id = body.get("id")
+            loc_city = (body.get("city") or "").strip()
+            loc_address = (body.get("address") or "").strip()
+            loc_phone = (body.get("phone") or "").strip() or None
+            is_main = bool(body.get("is_main", False))
+            if not loc_city or not loc_address:
+                return {"statusCode": 400, "headers": CORS, "body": json.dumps({"error": "Укажите город и адрес"})}
+            with conn.cursor() as cur:
+                if loc_id:
+                    cur.execute(
+                        f"UPDATE {SCHEMA}.shop_locations SET city = %s, address = %s, phone = %s, is_main = %s "
+                        f"WHERE id = %s AND shop_id = %s RETURNING id",
+                        (loc_city, loc_address, loc_phone, is_main, int(loc_id), shop_id)
+                    )
+                    row = cur.fetchone()
+                    if not row:
+                        return {"statusCode": 403, "headers": CORS, "body": json.dumps({"error": "Нет доступа"})}
+                    new_id = row[0]
+                else:
+                    cur.execute(
+                        f"INSERT INTO {SCHEMA}.shop_locations (shop_id, city, address, phone, is_main) "
+                        f"VALUES (%s, %s, %s, %s, %s) RETURNING id",
+                        (shop_id, loc_city, loc_address, loc_phone, is_main)
+                    )
+                    new_id = cur.fetchone()[0]
+                if is_main:
+                    cur.execute(
+                        f"UPDATE {SCHEMA}.shop_locations SET is_main = FALSE WHERE shop_id = %s AND id != %s",
+                        (shop_id, new_id)
+                    )
+            conn.commit()
+            return {"statusCode": 200, "headers": CORS, "body": json.dumps({"ok": True, "id": new_id})}
+
+        # POST delete_location — удалить адрес (пометить неактивным)
+        if action == "delete_location" and method == "POST":
+            if not user:
+                return {"statusCode": 401, "headers": CORS, "body": json.dumps({"error": "Не авторизован"})}
+            loc_id = int(body.get("id", 0))
+            with conn.cursor() as cur:
+                cur.execute(
+                    f"SELECT sl.id FROM {SCHEMA}.shop_locations sl "
+                    f"JOIN {SCHEMA}.shop_profiles sp ON sp.id = sl.shop_id "
+                    f"WHERE sl.id = %s AND sp.user_id = %s",
+                    (loc_id, user["id"])
+                )
+                if not cur.fetchone():
+                    return {"statusCode": 403, "headers": CORS, "body": json.dumps({"error": "Нет доступа"})}
+                cur.execute(
+                    f"UPDATE {SCHEMA}.shop_locations SET address = '[удалено] ' || address WHERE id = %s",
+                    (loc_id,)
+                )
+            conn.commit()
+            return {"statusCode": 200, "headers": CORS, "body": json.dumps({"ok": True})}
+
+        # GET locations — список адресов магазина
+        if action == "locations":
+            uid = qs.get("user_id") or (user["id"] if user else None)
+            if not uid:
+                return {"statusCode": 400, "headers": CORS, "body": json.dumps({"error": "user_id required"})}
+            with conn.cursor() as cur:
+                cur.execute(
+                    f"SELECT sl.id, sl.city, sl.address, sl.phone, sl.is_main "
+                    f"FROM {SCHEMA}.shop_locations sl "
+                    f"JOIN {SCHEMA}.shop_profiles sp ON sp.id = sl.shop_id "
+                    f"WHERE sp.user_id = %s AND sl.address NOT LIKE '[удалено]%%' "
+                    f"ORDER BY sl.is_main DESC, sl.id ASC",
+                    (uid,)
+                )
+                rows = cur.fetchall()
+            locs = [{"id": r[0], "city": r[1], "address": r[2], "phone": r[3], "is_main": bool(r[4])} for r in rows]
+            return {"statusCode": 200, "headers": CORS, "body": json.dumps({"locations": locs})}
 
         # GET my_status — подписка + профиль текущего пользователя
         if action == "my_status":
@@ -236,14 +319,17 @@ def handler(event: dict, context) -> dict:
 
         # GET list — список всех активных магазинов
         if action == "list":
+            city_filter = qs.get("city", "").strip()
+            where_extra = f"AND sp.city = '{city_filter.replace(chr(39), chr(39)+chr(39))}'" if city_filter else ""
             with conn.cursor() as cur:
                 cur.execute(
                     f"SELECT sp.id, sp.user_id, sp.shop_name, sp.logo_url, sp.description, "
-                    f"u.rating, u.reviews_count, u.sales_count, u.city "
+                    f"u.rating, u.reviews_count, u.sales_count, "
+                    f"COALESCE(sp.city, u.city) as city "
                     f"FROM {SCHEMA}.shop_profiles sp "
                     f"JOIN {SCHEMA}.users u ON u.id = sp.user_id "
                     f"JOIN {SCHEMA}.shop_subscriptions ss ON ss.user_id = sp.user_id "
-                    f"WHERE ss.status = 'active' "
+                    f"WHERE ss.status = 'active' {where_extra} "
                     f"ORDER BY u.rating DESC LIMIT 50"
                 )
                 rows = cur.fetchall()
@@ -252,7 +338,17 @@ def handler(event: dict, context) -> dict:
                 "description": r[4], "rating": float(r[5]), "reviews_count": r[6], "sales_count": r[7],
                 "city": r[8]
             } for r in rows]
-            return {"statusCode": 200, "headers": CORS, "body": json.dumps({"shops": shops})}
+            # Собираем уникальные города из всех локаций магазинов
+            with conn.cursor() as cur:
+                cur.execute(
+                    f"SELECT DISTINCT sl.city FROM {SCHEMA}.shop_locations sl "
+                    f"JOIN {SCHEMA}.shop_profiles sp2 ON sp2.id = sl.shop_id "
+                    f"JOIN {SCHEMA}.shop_subscriptions ss2 ON ss2.user_id = sp2.user_id "
+                    f"WHERE ss2.status = 'active' AND sl.address NOT LIKE '[удалено]%%' "
+                    f"ORDER BY sl.city"
+                )
+                loc_cities = [r[0] for r in cur.fetchall()]
+            return {"statusCode": 200, "headers": CORS, "body": json.dumps({"shops": shops, "cities": loc_cities})}
 
         return {"statusCode": 400, "headers": CORS, "body": json.dumps({"error": "Unknown action"})}
     finally:

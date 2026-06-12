@@ -92,7 +92,7 @@ export const authApi = {
 
 // BOUQUETS
 export const bouquetsApi = {
-  list: (params?: { status?: string; tag?: string; sort?: string; max_price?: number; city?: string; district?: string }) => {
+  list: (params?: { status?: string; tag?: string; sort?: string; max_price?: number; city?: string; district?: string; sale_type?: string }) => {
     const qs = new URLSearchParams({ action: "list" });
     if (params?.status) qs.set("status", params.status);
     if (params?.tag) qs.set("tag", params.tag);
@@ -100,6 +100,7 @@ export const bouquetsApi = {
     if (params?.max_price) qs.set("max_price", String(params.max_price));
     if (params?.city) qs.set("city", params.city);
     if (params?.district) qs.set("district", params.district);
+    if (params?.sale_type) qs.set("sale_type", params.sale_type);
     return req(`${URLS.bouquets}/?${qs}`);
   },
   flowers: () => req(`${URLS.bouquets}/?action=flowers`),
@@ -140,10 +141,15 @@ export const notificationsApi = {
 export const shopsApi = {
   myStatus: () => req(`${URLS.shops}/?action=my_status`),
   profile: (user_id?: number) => req(`${URLS.shops}/?action=profile${user_id ? `&user_id=${user_id}` : ""}`),
-  saveProfile: (data: { shop_name: string; logo_url?: string; description?: string; address?: string; phone?: string }) =>
+  saveProfile: (data: { shop_name: string; logo_url?: string; description?: string; address?: string; phone?: string; city?: string }) =>
     req(`${URLS.shops}/?action=save_profile`, { method: "POST", body: JSON.stringify({ action: "save_profile", ...data }) }),
-  list: () => req(`${URLS.shops}/?action=list`),
+  list: (city?: string) => req(`${URLS.shops}/?action=list${city ? `&city=${encodeURIComponent(city)}` : ""}`),
   shopBouquets: (user_id: number) => req(`${URLS.shops}/?action=shop_bouquets&user_id=${user_id}`),
+  locations: (user_id: number) => req(`${URLS.shops}/?action=locations&user_id=${user_id}`),
+  saveLocation: (data: { id?: number; city: string; address: string; phone?: string; is_main?: boolean }) =>
+    req(`${URLS.shops}/?action=save_location`, { method: "POST", body: JSON.stringify({ action: "save_location", ...data }) }),
+  deleteLocation: (id: number) =>
+    req(`${URLS.shops}/?action=delete_location`, { method: "POST", body: JSON.stringify({ action: "delete_location", id }) }),
 };
 
 // BANNERS
