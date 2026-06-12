@@ -38,7 +38,7 @@ interface Message { id: number; sender_id: number; text: string; created_at: str
 
 const TABS = [
   { id: "auctions", label: "Аукционы", icon: "Zap" },
-  { id: "catalog", label: "Каталог", icon: "Grid3X3" },
+  { id: "shops", label: "Магазины", icon: "Store" },
   { id: "sell", label: "Продать", icon: "PlusCircle" },
   { id: "deals", label: "Сделки", icon: "Handshake" },
   { id: "profile", label: "Профиль", icon: "User" },
@@ -1144,6 +1144,174 @@ function CatalogScreen({ user }: { user: User | null }) {
               <p>Нет букетов по этому фильтру</p>
             </div>
           )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ─── SHOPS SCREEN ──────────────────────────────────────── */
+function ShopsScreen({ user }: { user: User | null }) {
+  const [shops, setShops] = useState<{ id: number; user_id: number; shop_name: string; logo_url?: string; description?: string; rating: number; reviews_count: number; sales_count: number }[]>([]);
+  const [selected, setSelected] = useState<{ user_id: number; shop_name: string; logo_url?: string; description?: string; address?: string; phone?: string; rating: number; reviews_count: number } | null>(null);
+  const [bouquets, setBouquets] = useState<{ id: number; title: string; image_urls: string[]; current_price?: number; fixed_price?: number; sale_type: string; status: string; bids_count: number; reserve_enabled: boolean }[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [loadingBouquets, setLoadingBouquets] = useState(false);
+
+  useEffect(() => {
+    setLoading(true);
+    shopsApi.list().then(r => {
+      if (r.ok) setShops(r.data.shops);
+      setLoading(false);
+    });
+  }, []);
+
+  const openShop = async (userId: number) => {
+    const r = await shopsApi.profile(userId);
+    if (r.ok && r.data.profile) {
+      setSelected(r.data.profile);
+      setLoadingBouquets(true);
+      const rb = await shopsApi.shopBouquets(userId);
+      setLoadingBouquets(false);
+      if (rb.ok) setBouquets(rb.data.bouquets);
+    }
+  };
+
+  if (selected) return (
+    <div className="animate-fade-in">
+      <button onClick={() => { setSelected(null); setBouquets([]); }}
+        className="flex items-center gap-2 text-white/50 text-sm mb-4 hover:text-white transition-colors">
+        <Icon name="ArrowLeft" size={16} /> Все магазины
+      </button>
+      <div className="rounded-3xl p-5 mb-5 relative overflow-hidden"
+        style={{ background: "linear-gradient(135deg, rgba(255,61,139,0.12) 0%, rgba(168,85,247,0.12) 100%)", border: "1px solid rgba(255,61,139,0.2)" }}>
+        <div className="flex items-center gap-4">
+          <div className="w-16 h-16 rounded-2xl overflow-hidden flex-shrink-0"
+            style={{ background: "rgba(255,255,255,0.05)" }}>
+            {selected.logo_url
+              ? <img src={selected.logo_url} className="w-full h-full object-cover" />
+              : <div className="w-full h-full flex items-center justify-center text-3xl">🏪</div>}
+          </div>
+          <div className="flex-1">
+            <h2 className="font-oswald text-xl font-bold text-white">{selected.shop_name}</h2>
+            <div className="flex items-center gap-1 mt-0.5">
+              {[...Array(5)].map((_, i) => (
+                <Icon key={i} name="Star" size={11} className={i < Math.round(selected.rating) ? "text-yellow-400 fill-yellow-400" : "text-white/20"} />
+              ))}
+              <span className="text-white/40 text-xs ml-1">{selected.rating?.toFixed(1)} · {selected.reviews_count} отзывов</span>
+            </div>
+          </div>
+        </div>
+        {selected.description && <p className="text-white/50 text-sm mt-3">{selected.description}</p>}
+        <div className="flex gap-3 mt-3">
+          {selected.address && (
+            <div className="flex items-center gap-1.5">
+              <Icon name="MapPin" size={12} className="text-white/30" />
+              <span className="text-white/40 text-xs">{selected.address}</span>
+            </div>
+          )}
+          {selected.phone && (
+            <a href={`tel:${selected.phone}`} className="flex items-center gap-1.5 hover:text-pink-400 transition-colors">
+              <Icon name="Phone" size={12} className="text-white/30" />
+              <span className="text-white/40 text-xs">{selected.phone}</span>
+            </a>
+          )}
+        </div>
+      </div>
+
+      <h3 className="font-oswald text-lg font-bold text-white mb-3">Букеты магазина</h3>
+      {loadingBouquets ? (
+        <div className="flex justify-center py-10">
+          <div className="animate-spin rounded-full w-8 h-8 border-2 border-pink-400 border-t-transparent" />
+        </div>
+      ) : bouquets.length === 0 ? (
+        <div className="text-center py-12 text-white/30">
+          <span className="text-4xl block mb-3">🌸</span>
+          <p>Нет активных букетов</p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-2 gap-3">
+          {bouquets.map(b => (
+            <div key={b.id} className="glass rounded-2xl overflow-hidden">
+              <div className="aspect-square bg-white/5 relative">
+                {b.image_urls?.[0]
+                  ? <img src={b.image_urls[0]} className="w-full h-full object-cover" />
+                  : <div className="w-full h-full flex items-center justify-center text-3xl">🌸</div>}
+                <div className="absolute top-2 left-2">
+                  {b.sale_type === "fixed"
+                    ? <span className="text-xs px-2 py-0.5 rounded-full font-medium" style={{ background: "rgba(168,85,247,0.8)", color: "#fff" }}>Фикс</span>
+                    : <span className="text-xs px-2 py-0.5 rounded-full font-medium" style={{ background: "rgba(255,61,139,0.8)", color: "#fff" }}>Аукцион</span>}
+                </div>
+                {b.reserve_enabled && (
+                  <div className="absolute top-2 right-2">
+                    <span className="text-xs px-1.5 py-0.5 rounded-full" style={{ background: "rgba(0,0,0,0.6)", color: "rgba(255,255,255,0.7)" }}>📌</span>
+                  </div>
+                )}
+              </div>
+              <div className="p-3">
+                <p className="text-white text-sm font-medium truncate">{b.title}</p>
+                <p className="gradient-text font-oswald font-bold mt-1">
+                  {formatPrice(b.sale_type === "fixed" ? b.fixed_price : b.current_price)}
+                </p>
+                {b.sale_type === "auction" && b.bids_count > 0 && (
+                  <p className="text-white/30 text-xs mt-0.5">{b.bids_count} ставок</p>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+
+  return (
+    <div className="animate-fade-in">
+      <h2 className="font-oswald text-2xl font-bold text-white mb-1">Магазины</h2>
+      <p className="text-white/40 text-sm mb-5">Проверенные цветочные магазины на платформе</p>
+
+      {loading ? (
+        <div className="flex justify-center py-20">
+          <div className="animate-spin rounded-full w-8 h-8 border-2 border-pink-400 border-t-transparent" />
+        </div>
+      ) : shops.length === 0 ? (
+        <div className="text-center py-20">
+          <span className="text-6xl block mb-4">🏪</span>
+          <p className="font-oswald text-xl text-white mb-2">Магазинов пока нет</p>
+          <p className="text-white/40 text-sm">Первые магазины появятся совсем скоро</p>
+          {user && (
+            <p className="text-white/30 text-xs mt-4">Хочешь открыть свой? Перейди в Профиль → Магазин</p>
+          )}
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {shops.map(s => (
+            <button key={s.id} onClick={() => openShop(s.user_id)}
+              className="glass rounded-2xl p-4 w-full text-left transition-all hover:scale-[1.01] active:scale-[0.99]"
+              style={{ border: "1px solid rgba(255,255,255,0.07)" }}>
+              <div className="flex items-center gap-3">
+                <div className="w-14 h-14 rounded-2xl overflow-hidden flex-shrink-0"
+                  style={{ background: "rgba(255,255,255,0.05)" }}>
+                  {s.logo_url
+                    ? <img src={s.logo_url} className="w-full h-full object-cover" />
+                    : <div className="w-full h-full flex items-center justify-center text-2xl">🏪</div>}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-white font-semibold truncate">{s.shop_name}</p>
+                  <div className="flex items-center gap-1 mt-0.5">
+                    {[...Array(5)].map((_, i) => (
+                      <Icon key={i} name="Star" size={10} className={i < Math.round(s.rating) ? "text-yellow-400 fill-yellow-400" : "text-white/20"} />
+                    ))}
+                    <span className="text-white/40 text-xs ml-1">{s.rating?.toFixed(1)}</span>
+                  </div>
+                  {s.description && <p className="text-white/40 text-xs mt-0.5 truncate">{s.description}</p>}
+                </div>
+                <div className="text-right flex-shrink-0">
+                  <p className="text-white/50 text-xs">{s.sales_count} продаж</p>
+                  <Icon name="ChevronRight" size={16} className="text-white/20 mt-1 ml-auto" />
+                </div>
+              </div>
+            </button>
+          ))}
         </div>
       )}
     </div>
@@ -3297,9 +3465,9 @@ export default function Index() {
       )}
 
       <main className="max-w-lg mx-auto px-4 py-5 pb-28">
-        {(activeTab === "auctions" || activeTab === "catalog") && <AdBanners />}
+        {(activeTab === "auctions" || activeTab === "shops") && <AdBanners />}
         {activeTab === "auctions" && <AuctionsScreen onBid={setBidModal} user={user} />}
-        {activeTab === "catalog" && <CatalogScreen user={user} />}
+        {activeTab === "shops" && <ShopsScreen user={user} />}
         {activeTab === "sell" && <SellScreen user={user} />}
         {activeTab === "deals" && <DealsScreen user={user} onPaySuccess={refreshUser} />}
         {activeTab === "profile" && <ProfileScreen user={user} onLogout={handleLogout} onUpdate={refreshUser} onStartTour={startOnboarding} />}
