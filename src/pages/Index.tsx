@@ -2184,6 +2184,92 @@ function ChatWindow({ chat, user, onBack }: { chat: Chat; user: User; onBack: ()
   );
 }
 
+/* ─── SHOP BANNER REQUEST FORM ──────────────────────────── */
+function ShopBannerRequestForm({ user, isShopSubscriber }: { user: { id: number; name: string; email?: string; phone: string } | null; isShopSubscriber?: boolean }) {
+  const [title, setTitle] = useState("");
+  const [linkUrl, setLinkUrl] = useState("");
+  const [description, setDescription] = useState("");
+  const [contactName, setContactName] = useState(user?.name || "");
+  const [contactPhone, setContactPhone] = useState(user?.phone || "");
+  const [contactEmail, setContactEmail] = useState(user?.email || "");
+  const [months, setMonths] = useState("1");
+  const [sent, setSent] = useState(false);
+
+  const body = `Заявка на рекламный баннер\n\n` +
+    `Название/заголовок: ${title}\n` +
+    `Ссылка при клике: ${linkUrl || "не указана"}\n` +
+    `Описание: ${description || "не указано"}\n` +
+    `Срок размещения: ${months} мес.\n\n` +
+    `Контактное лицо: ${contactName}\n` +
+    `Телефон: ${contactPhone}\n` +
+    `Email: ${contactEmail}\n` +
+    (isShopSubscriber ? `\nПодписка магазина активна — добавить баннер\n` : "") +
+    `\nID пользователя: ${user?.id || "—"}`;
+
+  return sent ? (
+    <div className="text-center py-3">
+      <span className="text-2xl block mb-1">✅</span>
+      <p className="text-green-400 text-sm font-medium">Заявка отправлена!</p>
+      <p className="text-white/30 text-xs mt-1">Мы свяжемся с вами в течение 24 часов</p>
+    </div>
+  ) : (
+    <div className="space-y-2">
+      <div>
+        <label className="text-white/40 text-xs mb-1 block">Заголовок баннера *</label>
+        <input value={title} onChange={e => setTitle(e.target.value)}
+          className="glass w-full rounded-xl px-4 py-2.5 text-white placeholder:text-white/30 text-sm outline-none"
+          placeholder="Розы от 990 ₽ — магазин ЦветОК" />
+      </div>
+      <div>
+        <label className="text-white/40 text-xs mb-1 block">Ссылка при клике</label>
+        <input value={linkUrl} onChange={e => setLinkUrl(e.target.value)}
+          className="glass w-full rounded-xl px-4 py-2.5 text-white placeholder:text-white/30 text-sm outline-none"
+          placeholder="https://ваш-сайт.ru или телефон" />
+      </div>
+      <div>
+        <label className="text-white/40 text-xs mb-1 block">Описание под баннером</label>
+        <input value={description} onChange={e => setDescription(e.target.value)}
+          className="glass w-full rounded-xl px-4 py-2.5 text-white placeholder:text-white/30 text-sm outline-none"
+          placeholder="Доставка цветов по всему городу" />
+      </div>
+      <div className="grid grid-cols-2 gap-2">
+        <div>
+          <label className="text-white/40 text-xs mb-1 block">Ваше имя *</label>
+          <input value={contactName} onChange={e => setContactName(e.target.value)}
+            className="glass w-full rounded-xl px-3 py-2.5 text-white placeholder:text-white/30 text-sm outline-none"
+            placeholder="Иван Иванов" />
+        </div>
+        <div>
+          <label className="text-white/40 text-xs mb-1 block">Срок (мес.)</label>
+          <select value={months} onChange={e => setMonths(e.target.value)}
+            className="glass w-full rounded-xl px-3 py-2.5 text-white text-sm outline-none bg-transparent">
+            {["1","2","3","6","12"].map(m => <option key={m} value={m} className="bg-gray-900">{m} мес.</option>)}
+          </select>
+        </div>
+      </div>
+      <div>
+        <label className="text-white/40 text-xs mb-1 block">Телефон *</label>
+        <input value={contactPhone} onChange={e => setContactPhone(e.target.value)}
+          className="glass w-full rounded-xl px-4 py-2.5 text-white placeholder:text-white/30 text-sm outline-none"
+          placeholder="+7 999 000 00 00" />
+      </div>
+      <div>
+        <label className="text-white/40 text-xs mb-1 block">Email для подтверждения</label>
+        <input value={contactEmail} onChange={e => setContactEmail(e.target.value)}
+          className="glass w-full rounded-xl px-4 py-2.5 text-white placeholder:text-white/30 text-sm outline-none"
+          placeholder="your@email.ru" />
+      </div>
+      <p className="text-white/25 text-xs">После отправки мы вышлем реквизиты для оплаты и разместим ваш баннер в течение 24 часов</p>
+      <a
+        href={`mailto:flowerflip@flowerflip.ru?subject=${encodeURIComponent("Заявка на рекламный баннер")}&body=${encodeURIComponent(body)}`}
+        onClick={() => { if (title && contactPhone) setSent(true); }}
+        className="btn-gradient w-full rounded-2xl py-3 font-oswald tracking-wide text-white text-center block">
+        ОТПРАВИТЬ ЗАЯВКУ
+      </a>
+    </div>
+  );
+}
+
 /* ─── PROFILE SCREEN ─────────────────────────────────────── */
 function ProfileScreen({ user, onLogout, onUpdate, onStartTour }: { user: User | null; onLogout: () => void; onUpdate?: () => void; onStartTour?: () => void }) {
   const [tab, setTab] = useState<"about" | "reviews" | "referral" | "settings" | "shop">("about");
@@ -2652,30 +2738,59 @@ function ProfileScreen({ user, onLogout, onUpdate, onStartTour }: { user: User |
               <p>Загрузка...</p>
             </div>
           ) : !shopStatus.subscription?.is_active ? (
-            <div>
-              <div className="rounded-2xl p-5 mb-4 text-center"
+            <div className="space-y-4">
+              <div className="rounded-2xl p-5"
                 style={{ background: "linear-gradient(135deg, rgba(168,85,247,0.15), rgba(255,61,139,0.15))", border: "1px solid rgba(168,85,247,0.3)" }}>
-                <span className="text-4xl block mb-3">🏪</span>
-                <h3 className="font-oswald text-xl font-bold text-white mb-2">Профиль магазина</h3>
-                <p className="text-white/50 text-sm mb-4">Откройте витрину своего магазина на платформе, размещайте букеты и привлекайте покупателей</p>
-                <div className="space-y-2 text-left mb-5">
-                  {["Отдельная страница магазина с логотипом", "Неограниченное количество букетов", "Все форматы продажи: аукцион, фикс. цена, бронь", "Опция: размещение в рекламных баннерах"].map(f => (
+                <span className="text-4xl block mb-3 text-center">🏪</span>
+                <h3 className="font-oswald text-xl font-bold text-white mb-2 text-center">Профиль магазина</h3>
+                <p className="text-white/50 text-sm mb-4 text-center">Откройте витрину своего магазина на платформе</p>
+                <div className="space-y-1.5 mb-4">
+                  {["Отдельная страница магазина с логотипом", "Неограниченное кол-во букетов", "Все форматы: аукцион, фикс. цена, бронь"].map(f => (
                     <div key={f} className="flex items-center gap-2">
                       <span className="text-green-400 text-sm">✓</span>
                       <span className="text-white/70 text-sm">{f}</span>
                     </div>
                   ))}
                 </div>
-                <div className="glass rounded-2xl p-4 mb-4">
-                  <p className="text-white/40 text-xs mb-1">Стоимость подписки</p>
-                  <p className="gradient-text font-oswald text-2xl font-bold">{shopStatus.subscription_price.toLocaleString("ru-RU")} ₽/мес</p>
-                  <p className="text-white/30 text-xs mt-1">+ баннерная реклама {shopStatus.banner_addon_price.toLocaleString("ru-RU")} ₽/мес</p>
+                <div className="glass rounded-2xl p-3 text-center mb-4">
+                  <p className="text-white/40 text-xs mb-0.5">Стоимость подписки</p>
+                  <p className="gradient-text font-oswald text-2xl font-bold">{(shopStatus.subscription_price || 1990).toLocaleString("ru-RU")} ₽/мес</p>
                 </div>
-                <p className="text-white/40 text-sm">Для подключения напишите нам:</p>
-                <a href="mailto:flowerflip@flowerflip.ru"
-                  className="btn-gradient inline-block mt-3 px-6 py-3 rounded-2xl font-oswald tracking-wide text-white no-underline">
-                  ПОДКЛЮЧИТЬ МАГАЗИН
+              </div>
+              <div className="glass rounded-2xl p-4">
+                <p className="text-white/50 text-sm font-medium mb-3">Подать заявку на подключение магазина</p>
+                <div className="space-y-2">
+                  {([
+                    { label: "Название магазина *", val: shopName, set: setShopName, placeholder: "Цветочный рай" },
+                    { label: "Город", val: shopAddress, set: setShopAddress, placeholder: "Москва" },
+                    { label: "Телефон для связи *", val: shopPhone, set: setShopPhone, placeholder: "+7 999 000 00 00" },
+                    { label: "Описание магазина", val: shopDesc, set: setShopDesc, placeholder: "Свежие цветы, работаем с 2020 года..." },
+                  ] as {label:string;val:string;set:(v:string)=>void;placeholder:string}[]).map(({ label, val, set, placeholder }) => (
+                    <div key={label}>
+                      <label className="text-white/40 text-xs mb-1 block">{label}</label>
+                      <input value={val} onChange={e => set(e.target.value)}
+                        className="glass w-full rounded-xl px-4 py-2.5 text-white placeholder:text-white/30 text-sm outline-none"
+                        placeholder={placeholder} />
+                    </div>
+                  ))}
+                </div>
+                {shopMsg && <p className={`text-xs mt-2 ${shopMsg.includes("отправлена") ? "text-green-400" : "text-red-400"}`}>{shopMsg}</p>}
+                <a
+                  href={`mailto:flowerflip@flowerflip.ru?subject=${encodeURIComponent("Заявка на подписку магазина")}&body=${encodeURIComponent(`Название: ${shopName}\nГород: ${shopAddress}\nТелефон: ${shopPhone}\nОписание: ${shopDesc}\n\nПользователь ID: ${user?.id}\nEmail: ${user?.email || "не указан"}`)}`}
+                  onClick={() => setShopMsg("Заявка отправлена! Мы свяжемся с вами в течение 24 часов.")}
+                  className="btn-gradient w-full rounded-2xl py-3 mt-4 font-oswald tracking-wide text-white text-center block">
+                  ОТПРАВИТЬ ЗАЯВКУ
                 </a>
+                <p className="text-white/25 text-xs text-center mt-2">Откроется ваш почтовый клиент</p>
+              </div>
+              <div className="glass rounded-2xl p-4" style={{ border: "1px solid rgba(255,61,139,0.15)" }}>
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="text-lg">📢</span>
+                  <p className="text-white/60 text-sm font-medium">Только рекламный баннер</p>
+                  <span className="ml-auto text-pink-400 font-oswald text-sm font-bold">{(shopStatus.banner_addon_price || 990).toLocaleString("ru-RU")} ₽/мес</span>
+                </div>
+                <p className="text-white/40 text-xs mb-3">Разместите рекламу без открытия магазина. Баннер (фото/видео) показывается всем пользователям на главной.</p>
+                <ShopBannerRequestForm user={user} />
               </div>
             </div>
           ) : (
@@ -2691,7 +2806,6 @@ function ProfileScreen({ user, onLogout, onUpdate, onStartTour }: { user: User |
                   <p className="text-white/40 text-xs">До {new Date(shopStatus.subscription.expires_at).toLocaleDateString("ru-RU")}</p>
                 )}
               </div>
-
               <div className="glass rounded-2xl p-4">
                 <p className="text-white/50 text-sm font-medium mb-3">Профиль магазина</p>
                 <input ref={shopLogoRef} type="file" accept="image/*" className="hidden"
@@ -2706,31 +2820,25 @@ function ProfileScreen({ user, onLogout, onUpdate, onStartTour }: { user: User |
                   <div className="w-16 h-16 rounded-2xl overflow-hidden flex-shrink-0 cursor-pointer"
                     style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)" }}
                     onClick={() => shopLogoRef.current?.click()}>
-                    {shopLogoUploading ? (
-                      <div className="w-full h-full flex items-center justify-center">
-                        <div className="animate-spin rounded-full w-5 h-5 border-2 border-pink-400 border-t-transparent" />
-                      </div>
-                    ) : shopLogoUrl ? (
-                      <img src={shopLogoUrl} className="w-full h-full object-cover" />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center text-2xl">🏪</div>
-                    )}
+                    {shopLogoUploading
+                      ? <div className="w-full h-full flex items-center justify-center"><div className="animate-spin rounded-full w-5 h-5 border-2 border-pink-400 border-t-transparent" /></div>
+                      : shopLogoUrl ? <img src={shopLogoUrl} className="w-full h-full object-cover" />
+                      : <div className="w-full h-full flex items-center justify-center text-2xl">🏪</div>}
                   </div>
                   <div>
                     <p className="text-white text-sm font-medium">Логотип магазина</p>
-                    <button onClick={() => shopLogoRef.current?.click()}
-                      className="text-pink-400 text-xs mt-1 hover:text-pink-300 transition-colors">
+                    <button onClick={() => shopLogoRef.current?.click()} className="text-pink-400 text-xs mt-1 hover:text-pink-300 transition-colors">
                       {shopLogoUrl ? "Изменить" : "Загрузить"}
                     </button>
                   </div>
                 </div>
                 <div className="space-y-3">
-                  {[
+                  {([
                     { label: "Название магазина *", val: shopName, set: setShopName, placeholder: "Цветочный рай" },
                     { label: "Описание", val: shopDesc, set: setShopDesc, placeholder: "Продаём свежие букеты..." },
                     { label: "Адрес", val: shopAddress, set: setShopAddress, placeholder: "ул. Цветочная, 1" },
                     { label: "Телефон магазина", val: shopPhone, set: setShopPhone, placeholder: "+7 999 000 00 00" },
-                  ].map(({ label, val, set, placeholder }) => (
+                  ] as {label:string;val:string;set:(v:string)=>void;placeholder:string}[]).map(({ label, val, set, placeholder }) => (
                     <div key={label}>
                       <label className="text-white/40 text-xs mb-1 block">{label}</label>
                       <input value={val} onChange={e => set(e.target.value)}
@@ -2753,12 +2861,20 @@ function ProfileScreen({ user, onLogout, onUpdate, onStartTour }: { user: User |
                   {shopSaving ? "СОХРАНЕНИЕ..." : "СОХРАНИТЬ МАГАЗИН"}
                 </button>
               </div>
-
-              {shopStatus.subscription?.banner_addon && (
+              {shopStatus.subscription?.banner_addon ? (
                 <div className="glass rounded-2xl p-4" style={{ border: "1px solid rgba(255,61,139,0.2)" }}>
-                  <p className="text-white/50 text-sm font-medium mb-2">Рекламные баннеры</p>
-                  <p className="text-white/40 text-xs">У вас подключена опция баннерной рекламы. Для управления баннерами обратитесь к администратору или напишите на:</p>
-                  <a href="mailto:flowerflip@flowerflip.ru" className="text-pink-400 text-xs mt-1 block hover:text-pink-300 transition-colors">flowerflip@flowerflip.ru</a>
+                  <p className="text-white/50 text-sm font-medium mb-2">Рекламные баннеры — активны</p>
+                  <p className="text-white/40 text-xs mb-2">Для управления баннерами напишите администратору:</p>
+                  <a href="mailto:flowerflip@flowerflip.ru" className="text-pink-400 text-xs hover:text-pink-300 transition-colors block">flowerflip@flowerflip.ru</a>
+                </div>
+              ) : (
+                <div className="glass rounded-2xl p-4" style={{ border: "1px solid rgba(255,61,139,0.15)" }}>
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="text-white/50 text-sm font-medium">Добавить рекламный баннер</p>
+                    <span className="text-pink-400 font-oswald text-sm font-bold">{(shopStatus.banner_addon_price || 990).toLocaleString("ru-RU")} ₽/мес</span>
+                  </div>
+                  <p className="text-white/40 text-xs mb-3">Ваш баннер (фото или видео) будет показан всем пользователям на главной странице</p>
+                  <ShopBannerRequestForm user={user} isShopSubscriber />
                 </div>
               )}
             </div>

@@ -1,0 +1,1 @@
+UPDATE t_p84229990_flower_resale_auctio.platform_earnings SET amount = 0 WHERE id = 1;
