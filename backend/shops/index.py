@@ -12,6 +12,16 @@ CORS = {
 SUBSCRIPTION_PRICE = 1990
 BANNER_ADDON_PRICE = 990
 
+# Скидки по количеству месяцев: месяц → процент скидки
+DISCOUNTS = {1: 0, 2: 5, 3: 10, 6: 15, 12: 25}
+
+
+def calc_price(base_price: int, months: int) -> int:
+    """Итоговая цена с учётом скидки за количество месяцев"""
+    discount = DISCOUNTS.get(months, 0)
+    total = base_price * months * (100 - discount) // 100
+    return total
+
 
 def get_conn():
     return psycopg2.connect(os.environ["DATABASE_URL"])
@@ -133,9 +143,10 @@ def handler(event: dict, context) -> dict:
                 "profile": profile,
                 "subscription_price": SUBSCRIPTION_PRICE,
                 "banner_addon_price": BANNER_ADDON_PRICE,
+                "discounts": DISCOUNTS,
             })}
 
-        # POST activate_subscription — активировать подписку (админ активирует вручную после оплаты)
+        # POST activate_subscription — активировать подписку и списать баланс
         if action == "activate_subscription" and method == "POST":
             if not user or not user["is_admin"]:
                 return {"statusCode": 403, "headers": CORS, "body": json.dumps({"error": "Только для администратора"})}
@@ -143,7 +154,37 @@ def handler(event: dict, context) -> dict:
             plan = body.get("plan", "basic")
             months = int(body.get("months", 1))
             banner_addon = bool(body.get("banner_addon", False))
+            deduct_balance = bool(body.get("deduct_balance", False))
+
+            # Рассчитываем сумму к списанию
+            total = calc_price(SUBSCRIPTION_PRICE, months)
+            if banner_addon:
+                total += calc_price(BANNER_ADDON_PRICE, months)
+
             with conn.cursor() as cur:
+                # Проверяем баланс если нужно списать
+                if deduct_balance:
+                    cur.execute(f"SELECT balance FROM {SCHEMA}.users WHERE id = %s", (target_user_id,))
+                    row = cur.fetchone()
+                    if not row:
+                        return {"statusCode": 404, "headers": CORS, "body": json.dumps({"error": "Пользователь не найден"})}
+                    current_balance = float(row[0])
+                    if current_balance < total:
+                        return {"statusCode": 400, "headers": CORS, "body": json.dumps({
+                            "error": f"Недостаточно средств. Нужно {total} ₽, на балансе {current_balance:.2f} ₽"
+                        })}
+                    # Списываем с баланса
+                    cur.execute(
+                        f"UPDATE {SCHEMA}.users SET balance = balance - %s WHERE id = %s",
+                        (total, target_user_id)
+                    )
+                    # Записываем доход платформы
+                    cur.execute(
+                        f"INSERT INTO {SCHEMA}.platform_earnings (order_id, amount) VALUES (0, %s)",
+                        (total,)
+                    )
+
+                # Активируем подписку
                 cur.execute(
                     f"INSERT INTO {SCHEMA}.shop_subscriptions (user_id, plan, status, expires_at, banner_addon) "
                     f"VALUES (%s, %s, 'active', NOW() + INTERVAL '{months} months', %s) "
@@ -152,7 +193,11 @@ def handler(event: dict, context) -> dict:
                     (target_user_id, plan, banner_addon)
                 )
             conn.commit()
-            return {"statusCode": 200, "headers": CORS, "body": json.dumps({"ok": True})}
+            return {"statusCode": 200, "headers": CORS, "body": json.dumps({
+                "ok": True,
+                "deducted": total if deduct_balance else 0,
+                "months": months,
+            })}
 
         # GET shop_bouquets — букеты конкретного магазина
         if action == "shop_bouquets":

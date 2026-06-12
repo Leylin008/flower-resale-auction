@@ -80,6 +80,7 @@ export default function NotificationBell({ userId }: Props) {
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const load = useCallback(() => {
+    if (!localStorage.getItem("ff_token")) return;
     notificationsApi.list(20).then(r => {
       if (r.ok) {
         setNotifications(r.data.notifications || []);

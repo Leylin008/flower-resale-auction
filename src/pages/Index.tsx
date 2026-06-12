@@ -2185,22 +2185,68 @@ function ChatWindow({ chat, user, onBack }: { chat: Chat; user: User; onBack: ()
   );
 }
 
+/* ─── PRICE CALCULATOR ──────────────────────────────────── */
+const DISCOUNT_TABLE: Record<number, number> = { 1: 0, 2: 5, 3: 10, 6: 15, 12: 25 };
+const MONTH_OPTIONS = [
+  { value: 1, label: "1 мес." },
+  { value: 2, label: "2 мес.", discount: 5 },
+  { value: 3, label: "3 мес.", discount: 10 },
+  { value: 6, label: "6 мес.", discount: 15 },
+  { value: 12, label: "12 мес.", discount: 25 },
+];
+
+function calcTotal(basePrice: number, months: number): number {
+  const discount = DISCOUNT_TABLE[months] ?? 0;
+  return Math.floor(basePrice * months * (100 - discount) / 100);
+}
+
+function PriceBreakdown({ basePrice, months, label = "Итого" }: { basePrice: number; months: number; label?: string }) {
+  const discount = DISCOUNT_TABLE[months] ?? 0;
+  const total = calcTotal(basePrice, months);
+  const fullPrice = basePrice * months;
+  return (
+    <div className="rounded-xl p-3" style={{ background: "rgba(168,85,247,0.08)", border: "1px solid rgba(168,85,247,0.15)" }}>
+      <div className="flex items-center justify-between">
+        <span className="text-white/40 text-xs">{label}</span>
+        <div className="flex items-center gap-2">
+          {discount > 0 && (
+            <span className="text-white/25 text-xs line-through">{fullPrice.toLocaleString("ru-RU")} ₽</span>
+          )}
+          <span className="gradient-text font-oswald text-lg font-bold">{total.toLocaleString("ru-RU")} ₽</span>
+        </div>
+      </div>
+      {discount > 0 && (
+        <div className="flex items-center gap-1 mt-1">
+          <span className="text-xs px-1.5 py-0.5 rounded-md font-bold" style={{ background: "rgba(74,222,128,0.15)", color: "#4ade80" }}>
+            −{discount}%
+          </span>
+          <span className="text-white/30 text-xs">экономия {(fullPrice - total).toLocaleString("ru-RU")} ₽</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
 /* ─── SHOP BANNER REQUEST FORM ──────────────────────────── */
-function ShopBannerRequestForm({ user, isShopSubscriber }: { user: { id: number; name: string; email?: string; phone: string } | null; isShopSubscriber?: boolean }) {
+function ShopBannerRequestForm({ user, isShopSubscriber, bannerPrice = 990 }: { user: { id: number; name: string; email?: string; phone: string } | null; isShopSubscriber?: boolean; bannerPrice?: number }) {
   const [title, setTitle] = useState("");
   const [linkUrl, setLinkUrl] = useState("");
   const [description, setDescription] = useState("");
   const [contactName, setContactName] = useState(user?.name || "");
   const [contactPhone, setContactPhone] = useState(user?.phone || "");
   const [contactEmail, setContactEmail] = useState(user?.email || "");
-  const [months, setMonths] = useState("1");
+  const [months, setMonths] = useState(1);
   const [sent, setSent] = useState(false);
 
-  const body = `Заявка на рекламный баннер\n\n` +
+  const total = calcTotal(bannerPrice, months);
+  const discount = DISCOUNT_TABLE[months] ?? 0;
+
+  const emailBody = `Заявка на рекламный баннер\n\n` +
     `Название/заголовок: ${title}\n` +
     `Ссылка при клике: ${linkUrl || "не указана"}\n` +
     `Описание: ${description || "не указано"}\n` +
-    `Срок размещения: ${months} мес.\n\n` +
+    `Срок размещения: ${months} мес.\n` +
+    `Сумма: ${total.toLocaleString("ru-RU")} ₽${discount > 0 ? ` (скидка ${discount}%)` : ""}\n\n` +
     `Контактное лицо: ${contactName}\n` +
     `Телефон: ${contactPhone}\n` +
     `Email: ${contactEmail}\n` +
@@ -2233,6 +2279,22 @@ function ShopBannerRequestForm({ user, isShopSubscriber }: { user: { id: number;
           className="glass w-full rounded-xl px-4 py-2.5 text-white placeholder:text-white/30 text-sm outline-none"
           placeholder="Доставка цветов по всему городу" />
       </div>
+      <div>
+        <label className="text-white/40 text-xs mb-1 block">Срок размещения</label>
+        <div className="flex gap-1.5 flex-wrap">
+          {MONTH_OPTIONS.map(opt => (
+            <button key={opt.value} onClick={() => setMonths(opt.value)}
+              className="px-3 py-1.5 rounded-xl text-xs font-medium transition-all relative"
+              style={months === opt.value
+                ? { background: "var(--grad-main)", color: "#fff" }
+                : { background: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.4)" }}>
+              {opt.label}
+              {opt.discount && <span className="ml-1 text-green-400">−{opt.discount}%</span>}
+            </button>
+          ))}
+        </div>
+      </div>
+      <PriceBreakdown basePrice={bannerPrice} months={months} label="Стоимость баннера" />
       <div className="grid grid-cols-2 gap-2">
         <div>
           <label className="text-white/40 text-xs mb-1 block">Ваше имя *</label>
@@ -2241,18 +2303,11 @@ function ShopBannerRequestForm({ user, isShopSubscriber }: { user: { id: number;
             placeholder="Иван Иванов" />
         </div>
         <div>
-          <label className="text-white/40 text-xs mb-1 block">Срок (мес.)</label>
-          <select value={months} onChange={e => setMonths(e.target.value)}
-            className="glass w-full rounded-xl px-3 py-2.5 text-white text-sm outline-none bg-transparent">
-            {["1","2","3","6","12"].map(m => <option key={m} value={m} className="bg-gray-900">{m} мес.</option>)}
-          </select>
+          <label className="text-white/40 text-xs mb-1 block">Телефон *</label>
+          <input value={contactPhone} onChange={e => setContactPhone(e.target.value)}
+            className="glass w-full rounded-xl px-3 py-2.5 text-white placeholder:text-white/30 text-sm outline-none"
+            placeholder="+7 999 000 00" />
         </div>
-      </div>
-      <div>
-        <label className="text-white/40 text-xs mb-1 block">Телефон *</label>
-        <input value={contactPhone} onChange={e => setContactPhone(e.target.value)}
-          className="glass w-full rounded-xl px-4 py-2.5 text-white placeholder:text-white/30 text-sm outline-none"
-          placeholder="+7 999 000 00 00" />
       </div>
       <div>
         <label className="text-white/40 text-xs mb-1 block">Email для подтверждения</label>
@@ -2262,10 +2317,10 @@ function ShopBannerRequestForm({ user, isShopSubscriber }: { user: { id: number;
       </div>
       <p className="text-white/25 text-xs">После отправки мы вышлем реквизиты для оплаты и разместим ваш баннер в течение 24 часов</p>
       <a
-        href={`mailto:flowerflip@flowerflip.ru?subject=${encodeURIComponent("Заявка на рекламный баннер")}&body=${encodeURIComponent(body)}`}
+        href={`mailto:flowerflip@flowerflip.ru?subject=${encodeURIComponent("Заявка на рекламный баннер")}&body=${encodeURIComponent(emailBody)}`}
         onClick={() => { if (title && contactPhone) setSent(true); }}
         className="btn-gradient w-full rounded-2xl py-3 font-oswald tracking-wide text-white text-center block">
-        ОТПРАВИТЬ ЗАЯВКУ
+        ОТПРАВИТЬ ЗАЯВКУ — {total.toLocaleString("ru-RU")} ₽
       </a>
     </div>
   );
@@ -2318,6 +2373,7 @@ function ProfileScreen({ user, onLogout, onUpdate, onStartTour }: { user: User |
   const [shopDesc, setShopDesc] = useState("");
   const [shopAddress, setShopAddress] = useState("");
   const [shopPhone, setShopPhone] = useState("");
+  const [shopMonths, setShopMonths] = useState(1);
   const [shopLogoUrl, setShopLogoUrl] = useState("");
   const [shopLogoUploading, setShopLogoUploading] = useState(false);
   const [shopSaving, setShopSaving] = useState(false);
@@ -2757,10 +2813,6 @@ function ProfileScreen({ user, onLogout, onUpdate, onStartTour }: { user: User |
                     </div>
                   ))}
                 </div>
-                <div className="glass rounded-2xl p-3 text-center mb-4">
-                  <p className="text-white/40 text-xs mb-0.5">Стоимость подписки</p>
-                  <p className="gradient-text font-oswald text-2xl font-bold">{(shopStatus.subscription_price || 1990).toLocaleString("ru-RU")} ₽/мес</p>
-                </div>
               </div>
               <div className="glass rounded-2xl p-4">
                 <p className="text-white/50 text-sm font-medium mb-3">Подать заявку на подключение магазина</p>
@@ -2778,13 +2830,29 @@ function ProfileScreen({ user, onLogout, onUpdate, onStartTour }: { user: User |
                         placeholder={placeholder} />
                     </div>
                   ))}
+                  <div>
+                    <label className="text-white/40 text-xs mb-1 block">Срок подписки</label>
+                    <div className="flex gap-1.5 flex-wrap">
+                      {MONTH_OPTIONS.map(opt => (
+                        <button key={opt.value} onClick={() => setShopMonths(opt.value)}
+                          className="px-3 py-1.5 rounded-xl text-xs font-medium transition-all"
+                          style={shopMonths === opt.value
+                            ? { background: "var(--grad-main)", color: "#fff" }
+                            : { background: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.4)" }}>
+                          {opt.label}
+                          {opt.discount ? <span className="ml-1 text-green-400">−{opt.discount}%</span> : null}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <PriceBreakdown basePrice={shopStatus.subscription_price || 1990} months={shopMonths} label="Стоимость магазина" />
                 </div>
                 {shopMsg && <p className={`text-xs mt-2 ${shopMsg.includes("отправлена") ? "text-green-400" : "text-red-400"}`}>{shopMsg}</p>}
                 <a
-                  href={`mailto:flowerflip@flowerflip.ru?subject=${encodeURIComponent("Заявка на подписку магазина")}&body=${encodeURIComponent(`Название: ${shopName}\nГород: ${shopAddress}\nТелефон: ${shopPhone}\nОписание: ${shopDesc}\n\nПользователь ID: ${user?.id}\nEmail: ${user?.email || "не указан"}`)}`}
+                  href={`mailto:flowerflip@flowerflip.ru?subject=${encodeURIComponent("Заявка на подписку магазина")}&body=${encodeURIComponent(`Название: ${shopName}\nГород: ${shopAddress}\nТелефон: ${shopPhone}\nОписание: ${shopDesc}\nСрок: ${shopMonths} мес.\nСумма: ${calcTotal(shopStatus.subscription_price || 1990, shopMonths).toLocaleString("ru-RU")} ₽${DISCOUNT_TABLE[shopMonths] ? ` (скидка ${DISCOUNT_TABLE[shopMonths]}%)` : ""}\n\nПользователь ID: ${user?.id}\nEmail: ${user?.email || "не указан"}`)}`}
                   onClick={() => setShopMsg("Заявка отправлена! Мы свяжемся с вами в течение 24 часов.")}
-                  className="btn-gradient w-full rounded-2xl py-3 mt-4 font-oswald tracking-wide text-white text-center block">
-                  ОТПРАВИТЬ ЗАЯВКУ
+                  className="btn-gradient w-full rounded-2xl py-3 mt-3 font-oswald tracking-wide text-white text-center block">
+                  ОТПРАВИТЬ ЗАЯВКУ — {calcTotal(shopStatus.subscription_price || 1990, shopMonths).toLocaleString("ru-RU")} ₽
                 </a>
                 <p className="text-white/25 text-xs text-center mt-2">Откроется ваш почтовый клиент</p>
               </div>
@@ -2792,10 +2860,10 @@ function ProfileScreen({ user, onLogout, onUpdate, onStartTour }: { user: User |
                 <div className="flex items-center gap-2 mb-2">
                   <span className="text-lg">📢</span>
                   <p className="text-white/60 text-sm font-medium">Только рекламный баннер</p>
-                  <span className="ml-auto text-pink-400 font-oswald text-sm font-bold">{(shopStatus.banner_addon_price || 990).toLocaleString("ru-RU")} ₽/мес</span>
+                  <span className="ml-auto text-pink-400 font-oswald text-sm font-bold">от {(shopStatus.banner_addon_price || 990).toLocaleString("ru-RU")} ₽/мес</span>
                 </div>
                 <p className="text-white/40 text-xs mb-3">Разместите рекламу без открытия магазина. Баннер (фото/видео) показывается всем пользователям на главной.</p>
-                <ShopBannerRequestForm user={user} />
+                <ShopBannerRequestForm user={user} bannerPrice={shopStatus.banner_addon_price || 990} />
               </div>
             </div>
           ) : (
@@ -3145,7 +3213,7 @@ function AdminScreen({ user }: { user: User | null }) {
 
   // Подписки магазинов
   const [subscriptions, setSubscriptions] = useState<{ id: number; user_id: number; user_name: string; user_email?: string; shop_name?: string; status: string; expires_at?: string; banner_addon: boolean }[]>([]);
-  const [subForm, setSubForm] = useState<{ user_id: string; months: string; banner_addon: boolean }>({ user_id: "", months: "1", banner_addon: false });
+  const [subForm, setSubForm] = useState<{ user_id: string; months: number; banner_addon: boolean; deduct_balance: boolean }>({ user_id: "", months: 1, banner_addon: false, deduct_balance: false });
   const [subMsg, setSubMsg] = useState("");
 
   const load = useCallback(() => {
@@ -3201,9 +3269,14 @@ function AdminScreen({ user }: { user: User | null }) {
 
   const activateSub = async () => {
     if (!subForm.user_id) { setSubMsg("Укажите ID пользователя"); return; }
-    const r = await adminApi.activateSubscription(parseInt(subForm.user_id), parseInt(subForm.months), subForm.banner_addon);
-    setSubMsg(r.ok ? "Подписка активирована!" : (r.data.error || "Ошибка"));
-    if (r.ok) adminApi.subscriptions().then(res => { if (res.ok) setSubscriptions(res.data.subscriptions); });
+    const r = await adminApi.activateSubscription(parseInt(subForm.user_id), subForm.months, subForm.banner_addon, subForm.deduct_balance);
+    if (r.ok) {
+      const deducted = r.data.deducted || 0;
+      setSubMsg(`Подписка активирована!${deducted > 0 ? ` Списано ${deducted.toLocaleString("ru-RU")} ₽` : ""}`);
+      adminApi.subscriptions().then(res => { if (res.ok) setSubscriptions(res.data.subscriptions); });
+    } else {
+      setSubMsg(r.data.error || "Ошибка");
+    }
   };
 
   const methodLabel: Record<string, string> = { card: "Карта", sbp: "СБП", wallet: "Кошелёк" };
@@ -3405,21 +3478,40 @@ function AdminScreen({ user }: { user: User | null }) {
               <input value={subForm.user_id} onChange={e => setSubForm(p => ({ ...p, user_id: e.target.value }))}
                 className="glass w-full rounded-xl px-4 py-2.5 text-white placeholder:text-white/30 text-sm outline-none"
                 placeholder="ID пользователя" type="number" />
-              <div className="flex gap-2">
-                <div className="flex-1">
-                  <label className="text-white/40 text-xs block mb-1">Месяцев</label>
-                  <input type="number" min="1" value={subForm.months} onChange={e => setSubForm(p => ({ ...p, months: e.target.value }))}
-                    className="glass w-full rounded-xl px-3 py-2.5 text-white text-sm outline-none" />
-                </div>
-                <div className="flex-1">
-                  <label className="text-white/40 text-xs block mb-1">+ Баннеры</label>
-                  <button onClick={() => setSubForm(p => ({ ...p, banner_addon: !p.banner_addon }))}
-                    className="w-full rounded-xl py-2.5 text-sm transition-all"
-                    style={subForm.banner_addon ? { background: "rgba(255,61,139,0.2)", color: "#ff3d8b" } : { background: "rgba(255,255,255,0.05)", color: "rgba(255,255,255,0.4)" }}>
-                    {subForm.banner_addon ? "Вкл" : "Выкл"}
-                  </button>
+              <div>
+                <label className="text-white/40 text-xs block mb-1">Срок подписки</label>
+                <div className="flex gap-1.5 flex-wrap">
+                  {MONTH_OPTIONS.map(opt => (
+                    <button key={opt.value} onClick={() => setSubForm(p => ({ ...p, months: opt.value }))}
+                      className="px-3 py-1.5 rounded-xl text-xs font-medium transition-all"
+                      style={subForm.months === opt.value
+                        ? { background: "var(--grad-main)", color: "#fff" }
+                        : { background: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.4)" }}>
+                      {opt.label}
+                      {opt.discount ? <span className="ml-1 text-green-400">−{opt.discount}%</span> : null}
+                    </button>
+                  ))}
                 </div>
               </div>
+              <div>
+                <label className="text-white/40 text-xs block mb-1">+ Баннеры</label>
+                <button onClick={() => setSubForm(p => ({ ...p, banner_addon: !p.banner_addon }))}
+                  className="w-full rounded-xl py-2.5 text-sm transition-all"
+                  style={subForm.banner_addon ? { background: "rgba(255,61,139,0.2)", color: "#ff3d8b" } : { background: "rgba(255,255,255,0.05)", color: "rgba(255,255,255,0.4)" }}>
+                  {subForm.banner_addon ? "Баннеры включены" : "Без баннеров"}
+                </button>
+              </div>
+              <PriceBreakdown
+                basePrice={1990 + (subForm.banner_addon ? 990 : 0)}
+                months={subForm.months}
+                label="Итоговая сумма"
+              />
+              <button onClick={() => setSubForm(p => ({ ...p, deduct_balance: !p.deduct_balance }))}
+                className="w-full rounded-xl py-2.5 text-sm transition-all flex items-center justify-center gap-2"
+                style={subForm.deduct_balance ? { background: "rgba(74,222,128,0.15)", color: "#4ade80" } : { background: "rgba(255,255,255,0.05)", color: "rgba(255,255,255,0.4)" }}>
+                <Icon name={subForm.deduct_balance ? "CheckSquare" : "Square"} size={14} />
+                {subForm.deduct_balance ? "Списать с баланса пользователя" : "Активировать без списания"}
+              </button>
             </div>
             {subMsg && <p className={`text-xs mt-2 ${subMsg.includes("активирована") ? "text-green-400" : "text-red-400"}`}>{subMsg}</p>}
             <button onClick={activateSub} className="btn-gradient w-full rounded-xl py-2.5 mt-3 text-sm font-oswald">АКТИВИРОВАТЬ</button>

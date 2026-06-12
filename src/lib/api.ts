@@ -198,8 +198,8 @@ export const adminApi = {
     req(`${URLS.admin}/?action=reject`, { method: "POST", body: JSON.stringify({ action: "reject", withdrawal_id, comment }) }),
   stats: () => req(`${URLS.admin}/?action=stats`),
   subscriptions: () => req(`${URLS.admin}/?action=subscriptions`),
-  activateSubscription: (user_id: number, months: number, banner_addon: boolean) =>
-    req(`${URLS.admin}/?action=activate_subscription`, { method: "POST", body: JSON.stringify({ action: "activate_subscription", user_id, months, banner_addon }) }),
+  activateSubscription: (user_id: number, months: number, banner_addon: boolean, deduct_balance = false) =>
+    req(`${URLS.admin}/?action=activate_subscription`, { method: "POST", body: JSON.stringify({ action: "activate_subscription", user_id, months, banner_addon, deduct_balance }) }),
   deactivateSubscription: (user_id: number) =>
     req(`${URLS.admin}/?action=deactivate_subscription`, { method: "POST", body: JSON.stringify({ action: "deactivate_subscription", user_id }) }),
 };
