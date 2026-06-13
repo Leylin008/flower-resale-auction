@@ -10,6 +10,7 @@ import Partners from "./pages/Partners";
 import Investor from "./pages/Investor";
 import Negotiation from "./pages/Negotiation";
 import Pitch from "./pages/Pitch";
+import Anime from "./pages/Anime";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -46,6 +47,7 @@ const App = () => (
             <Route path="/investor" element={<Investor />} />
             <Route path="/negotiation" element={<Negotiation />} />
             <Route path="/pitch" element={<Pitch />} />
+            <Route path="/anime" element={<Anime />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>

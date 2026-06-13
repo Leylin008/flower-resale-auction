@@ -237,7 +237,7 @@ export default function Investor() {
         </a>
 
         {/* ССЫЛКА НА ПЕРЕГОВОРЫ */}
-        <a href="/negotiation" className="flex items-center gap-3 mb-8 rounded-2xl p-4 transition-all hover:scale-[1.01]"
+        <a href="/negotiation" className="flex items-center gap-3 mb-3 rounded-2xl p-4 transition-all hover:scale-[1.01]"
           style={{ background: "linear-gradient(135deg, rgba(34,197,94,0.15), rgba(168,85,247,0.15))", border: "1px solid rgba(34,197,94,0.3)" }}>
           <div className="w-11 h-11 rounded-xl flex items-center justify-center shrink-0" style={{ background: "linear-gradient(135deg,#22c55e,#a855f7)" }}>
             <Icon name="MessagesSquare" size={22} className="text-white" />
@@ -245,6 +245,19 @@ export default function Investor() {
           <div className="flex-1 min-w-0">
             <p className="font-oswald text-base font-bold text-white">Сценарии переговоров</p>
             <p className="text-white/50 text-xs">Готовые фразы и на чём делать упор, чтобы продавить позицию</p>
+          </div>
+          <Icon name="ChevronRight" size={20} className="text-white/40" />
+        </a>
+
+        {/* ССЫЛКА НА АНИМЕ */}
+        <a href="/anime" className="flex items-center gap-3 mb-8 rounded-2xl p-4 transition-all hover:scale-[1.01]"
+          style={{ background: "linear-gradient(135deg, rgba(168,85,247,0.18), rgba(255,107,43,0.15))", border: "1px solid rgba(168,85,247,0.3)" }}>
+          <div className="w-11 h-11 rounded-xl flex items-center justify-center shrink-0" style={{ background: "linear-gradient(135deg,#a855f7,#ff6b2b)" }}>
+            <Icon name="Clapperboard" size={22} className="text-white" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="font-oswald text-base font-bold text-white">Аниме для продвижения</p>
+            <p className="text-white/50 text-xs">Сюжет, бюджет и 10 студий с минимальной ценой</p>
           </div>
           <Icon name="ChevronRight" size={20} className="text-white/40" />
         </a>
