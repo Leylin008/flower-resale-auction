@@ -3422,6 +3422,19 @@ function AdminScreen({ user }: { user: User | null }) {
     <div className="animate-fade-in">
       <h2 className="font-oswald text-2xl font-bold text-white mb-3">Админ-панель</h2>
 
+      <a href="/investor"
+        className="flex items-center gap-3 mb-4 rounded-2xl p-4 transition-all hover:scale-[1.01]"
+        style={{ background: "linear-gradient(135deg, rgba(255,61,139,0.18), rgba(168,85,247,0.18))", border: "1px solid rgba(255,61,139,0.3)" }}>
+        <div className="w-11 h-11 rounded-xl flex items-center justify-center shrink-0" style={{ background: "var(--grad-main)" }}>
+          <Icon name="TrendingUp" size={22} className="text-white" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="font-oswald text-base font-bold text-white">Инвестиционная стратегия</p>
+          <p className="text-white/50 text-xs">Оценка, команда, бюджет, переговоры с инвестором</p>
+        </div>
+        <Icon name="ChevronRight" size={20} className="text-white/40" />
+      </a>
+
       {stats && (
         <div className="grid grid-cols-2 gap-2 mb-4">
           {[
