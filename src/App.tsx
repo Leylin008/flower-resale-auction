@@ -8,6 +8,7 @@ import { Component, ReactNode } from "react";
 import Index from "./pages/Index";
 import Partners from "./pages/Partners";
 import Investor from "./pages/Investor";
+import Negotiation from "./pages/Negotiation";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -42,6 +43,7 @@ const App = () => (
             <Route path="/" element={<Index />} />
             <Route path="/partners" element={<Partners />} />
             <Route path="/investor" element={<Investor />} />
+            <Route path="/negotiation" element={<Negotiation />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>
