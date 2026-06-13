@@ -1,0 +1,1 @@
+UPDATE t_p84229990_flower_resale_auctio.users SET email_verified = true, email_token = NULL WHERE email = 'ni8kita@yandex.ru';
