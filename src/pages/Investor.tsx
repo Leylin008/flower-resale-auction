@@ -223,6 +223,19 @@ export default function Investor() {
           <p className="text-white/40 text-xs mt-3 italic">«Продай букет. Получи деньги. Пусть цветы живут дольше.»</p>
         </div>
 
+        {/* ССЫЛКА НА ПРЕЗЕНТАЦИЮ */}
+        <a href="/pitch" className="flex items-center gap-3 mb-3 rounded-2xl p-4 transition-all hover:scale-[1.01]"
+          style={{ background: "linear-gradient(135deg, rgba(255,61,139,0.18), rgba(6,214,222,0.15))", border: "1px solid rgba(255,61,139,0.3)" }}>
+          <div className="w-11 h-11 rounded-xl flex items-center justify-center shrink-0" style={{ background: "linear-gradient(135deg,#ff3d8b,#06d6de)" }}>
+            <Icon name="Presentation" size={22} className="text-white" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="font-oswald text-base font-bold text-white">Презентация для инвестора</p>
+            <p className="text-white/50 text-xs">Питч-дек из 10 слайдов — показать на встрече</p>
+          </div>
+          <Icon name="ChevronRight" size={20} className="text-white/40" />
+        </a>
+
         {/* ССЫЛКА НА ПЕРЕГОВОРЫ */}
         <a href="/negotiation" className="flex items-center gap-3 mb-8 rounded-2xl p-4 transition-all hover:scale-[1.01]"
           style={{ background: "linear-gradient(135deg, rgba(34,197,94,0.15), rgba(168,85,247,0.15))", border: "1px solid rgba(34,197,94,0.3)" }}>
