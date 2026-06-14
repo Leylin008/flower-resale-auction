@@ -325,7 +325,7 @@ export default function Partners() {
             НАПИСАТЬ НАМ
           </a>
           <div style={{ marginTop: 20, fontSize: 13, color: "rgba(255,255,255,0.25)" }}>
-            flowerflip@flowerflip.ru · flowerflip.ru
+            flowerflip@flowerflip.ru · flowerflip.online
           </div>
         </div>
       </section>
