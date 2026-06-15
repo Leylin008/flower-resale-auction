@@ -2825,12 +2825,6 @@ function ProfileScreen({ user, onLogout, onUpdate, onStartTour }: { user: User |
                 <Icon name="Clock" size={13} className="text-white/20 flex-shrink-0" />
                 <p className="text-white/25 text-xs">Ответ в течение 24 часов в рабочие дни</p>
               </div>
-              <div className="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 pt-2 pb-1 border-t border-white/5 mt-1">
-                <a href="/privacy" className="text-white/30 text-xs hover:text-pink-400 transition-colors">Конфиденциальность</a>
-                <a href="/cookies" className="text-white/30 text-xs hover:text-pink-400 transition-colors">Cookie</a>
-                <a href="/terms" className="text-white/30 text-xs hover:text-pink-400 transition-colors">Соглашение</a>
-                <a href="/offer" className="text-white/30 text-xs hover:text-pink-400 transition-colors">Оферта</a>
-              </div>
               {onStartTour && (
                 <button onClick={onStartTour}
                   className="flex items-center gap-3 glass rounded-xl px-4 py-3 w-full hover:bg-white/5 transition-colors group">
@@ -2844,6 +2838,32 @@ function ProfileScreen({ user, onLogout, onUpdate, onStartTour }: { user: User |
                   </div>
                 </button>
               )}
+            </div>
+          </div>
+
+          {/* Документы */}
+          <div className="glass rounded-2xl p-4" style={{ border: "1px solid rgba(255,255,255,0.06)" }}>
+            <p className="text-white/50 text-sm mb-3 font-medium">Правовые документы</p>
+            <div className="space-y-2">
+              {[
+                { href: "/privacy", icon: "ShieldCheck", title: "Политика конфиденциальности", sub: "Как мы обрабатываем ваши данные" },
+                { href: "/cookies", icon: "Cookie", title: "Политика cookie", sub: "Какие файлы cookie мы используем" },
+                { href: "/terms", icon: "FileText", title: "Пользовательское соглашение", sub: "Правила использования платформы" },
+                { href: "/offer", icon: "Receipt", title: "Публичная оферта", sub: "Условия сделок и расчётов" },
+              ].map((doc) => (
+                <a key={doc.href} href={doc.href}
+                  className="flex items-center gap-3 glass rounded-xl px-4 py-3 hover:bg-white/5 transition-colors group">
+                  <div className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0"
+                    style={{ background: "rgba(168,85,247,0.15)" }}>
+                    <Icon name={doc.icon} size={15} style={{ color: "#a855f7" }} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-white/70 text-sm group-hover:text-white transition-colors">{doc.title}</p>
+                    <p className="text-white/30 text-xs">{doc.sub}</p>
+                  </div>
+                  <Icon name="ChevronRight" size={14} className="text-white/20 flex-shrink-0" />
+                </a>
+              ))}
             </div>
           </div>
         </div>
