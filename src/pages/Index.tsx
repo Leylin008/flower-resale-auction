@@ -2303,6 +2303,7 @@ function ShopBannerRequestForm({ user, isShopSubscriber, bannerPrice = 990 }: { 
   const [contactEmail, setContactEmail] = useState(user?.email || "");
   const [months, setMonths] = useState(1);
   const [sent, setSent] = useState(false);
+  const [agree, setAgree] = useState(false);
 
   const total = calcTotal(bannerPrice, months);
   const discount = DISCOUNT_TABLE[months] ?? 0;
@@ -2382,12 +2383,35 @@ function ShopBannerRequestForm({ user, isShopSubscriber, bannerPrice = 990 }: { 
           placeholder="your@email.ru" />
       </div>
       <p className="text-white/25 text-xs">После отправки мы вышлем реквизиты для оплаты и разместим ваш баннер в течение 24 часов</p>
-      <a
-        href={`mailto:flowerflip@flowerflip.ru?subject=${encodeURIComponent("Заявка на рекламный баннер")}&body=${encodeURIComponent(emailBody)}`}
-        onClick={() => { if (title && contactPhone) setSent(true); }}
-        className="btn-gradient w-full rounded-2xl py-3 font-oswald tracking-wide text-white text-center block">
-        ОТПРАВИТЬ ЗАЯВКУ — {total.toLocaleString("ru-RU")} ₽
-      </a>
+      <label className="flex items-start gap-2.5 cursor-pointer select-none">
+        <button type="button" onClick={() => setAgree(v => !v)}
+          className="w-5 h-5 rounded-md flex items-center justify-center flex-shrink-0 mt-0.5 transition-all"
+          style={agree
+            ? { background: "var(--grad-main)" }
+            : { background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.15)" }}>
+          {agree && <Icon name="Check" size={13} className="text-white" />}
+        </button>
+        <span className="text-white/45 text-xs leading-relaxed">
+          Я принимаю{" "}
+          <a href="/offer" target="_blank" onClick={e => e.stopPropagation()} className="text-pink-400 underline">оферту</a>,{" "}
+          <a href="/terms" target="_blank" onClick={e => e.stopPropagation()} className="text-pink-400 underline">соглашение</a>{" "}
+          и согласен на обработку данных по{" "}
+          <a href="/privacy" target="_blank" onClick={e => e.stopPropagation()} className="text-pink-400 underline">политике</a>
+        </span>
+      </label>
+      {agree ? (
+        <a
+          href={`mailto:flowerflip@flowerflip.ru?subject=${encodeURIComponent("Заявка на рекламный баннер")}&body=${encodeURIComponent(emailBody)}`}
+          onClick={() => { if (title && contactPhone) setSent(true); }}
+          className="btn-gradient w-full rounded-2xl py-3 font-oswald tracking-wide text-white text-center block">
+          ОТПРАВИТЬ ЗАЯВКУ — {total.toLocaleString("ru-RU")} ₽
+        </a>
+      ) : (
+        <div className="w-full rounded-2xl py-3 font-oswald tracking-wide text-white/40 text-center"
+          style={{ background: "rgba(255,255,255,0.05)" }}>
+          ОТПРАВИТЬ ЗАЯВКУ — {total.toLocaleString("ru-RU")} ₽
+        </div>
+      )}
     </div>
   );
 }
@@ -2445,6 +2469,7 @@ function ProfileScreen({ user, onLogout, onUpdate, onStartTour }: { user: User |
   const [shopLogoUploading, setShopLogoUploading] = useState(false);
   const [shopSaving, setShopSaving] = useState(false);
   const [shopMsg, setShopMsg] = useState("");
+  const [shopAgree, setShopAgree] = useState(false);
   const shopLogoRef = useRef<HTMLInputElement>(null);
   // Адреса (мульти-локации)
   const [shopLocations, setShopLocations] = useState<{ id: number; city: string; address: string; phone?: string; is_main: boolean }[]>([]);
@@ -2949,13 +2974,37 @@ function ProfileScreen({ user, onLogout, onUpdate, onStartTour }: { user: User |
                   </div>
                   <PriceBreakdown basePrice={shopStatus.subscription_price || 1990} months={shopMonths} label="Стоимость магазина" />
                 </div>
+                <label className="flex items-start gap-2.5 mt-3 cursor-pointer select-none">
+                  <button type="button" onClick={() => setShopAgree(v => !v)}
+                    className="w-5 h-5 rounded-md flex items-center justify-center flex-shrink-0 mt-0.5 transition-all"
+                    style={shopAgree
+                      ? { background: "var(--grad-main)" }
+                      : { background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.15)" }}>
+                    {shopAgree && <Icon name="Check" size={13} className="text-white" />}
+                  </button>
+                  <span className="text-white/45 text-xs leading-relaxed">
+                    Я принимаю{" "}
+                    <a href="/offer" target="_blank" onClick={e => e.stopPropagation()} className="text-pink-400 underline">оферту</a>,{" "}
+                    <a href="/terms" target="_blank" onClick={e => e.stopPropagation()} className="text-pink-400 underline">соглашение</a>{" "}
+                    и согласен на обработку данных по{" "}
+                    <a href="/privacy" target="_blank" onClick={e => e.stopPropagation()} className="text-pink-400 underline">политике</a>
+                  </span>
+                </label>
                 {shopMsg && <p className={`text-xs mt-2 ${shopMsg.includes("отправлена") ? "text-green-400" : "text-red-400"}`}>{shopMsg}</p>}
-                <a
-                  href={`mailto:flowerflip@flowerflip.ru?subject=${encodeURIComponent("Заявка на подписку магазина")}&body=${encodeURIComponent(`Название: ${shopName}\nГород: ${shopAddress}\nТелефон: ${shopPhone}\nОписание: ${shopDesc}\nСрок: ${shopMonths} мес.\nСумма: ${calcTotal(shopStatus.subscription_price || 1990, shopMonths).toLocaleString("ru-RU")} ₽${DISCOUNT_TABLE[shopMonths] ? ` (скидка ${DISCOUNT_TABLE[shopMonths]}%)` : ""}\n\nПользователь ID: ${user?.id}\nEmail: ${user?.email || "не указан"}`)}`}
-                  onClick={() => setShopMsg("Заявка отправлена! Мы свяжемся с вами в течение 24 часов.")}
-                  className="btn-gradient w-full rounded-2xl py-3 mt-3 font-oswald tracking-wide text-white text-center block">
-                  ОТПРАВИТЬ ЗАЯВКУ — {calcTotal(shopStatus.subscription_price || 1990, shopMonths).toLocaleString("ru-RU")} ₽
-                </a>
+                {shopAgree ? (
+                  <a
+                    href={`mailto:flowerflip@flowerflip.ru?subject=${encodeURIComponent("Заявка на подписку магазина")}&body=${encodeURIComponent(`Название: ${shopName}\nГород: ${shopAddress}\nТелефон: ${shopPhone}\nОписание: ${shopDesc}\nСрок: ${shopMonths} мес.\nСумма: ${calcTotal(shopStatus.subscription_price || 1990, shopMonths).toLocaleString("ru-RU")} ₽${DISCOUNT_TABLE[shopMonths] ? ` (скидка ${DISCOUNT_TABLE[shopMonths]}%)` : ""}\n\nПользователь ID: ${user?.id}\nEmail: ${user?.email || "не указан"}`)}`}
+                    onClick={() => setShopMsg("Заявка отправлена! Мы свяжемся с вами в течение 24 часов.")}
+                    className="btn-gradient w-full rounded-2xl py-3 mt-3 font-oswald tracking-wide text-white text-center block">
+                    ОТПРАВИТЬ ЗАЯВКУ — {calcTotal(shopStatus.subscription_price || 1990, shopMonths).toLocaleString("ru-RU")} ₽
+                  </a>
+                ) : (
+                  <button type="button" onClick={() => setShopMsg("Подтвердите согласие с условиями")}
+                    className="w-full rounded-2xl py-3 mt-3 font-oswald tracking-wide text-white/40 text-center block"
+                    style={{ background: "rgba(255,255,255,0.05)" }}>
+                    ОТПРАВИТЬ ЗАЯВКУ — {calcTotal(shopStatus.subscription_price || 1990, shopMonths).toLocaleString("ru-RU")} ₽
+                  </button>
+                )}
                 <p className="text-white/25 text-xs text-center mt-2">Откроется ваш почтовый клиент</p>
               </div>
               <div className="glass rounded-2xl p-4" style={{ border: "1px solid rgba(255,61,139,0.15)" }}>
