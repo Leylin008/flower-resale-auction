@@ -52,7 +52,7 @@ export default function LegalLayout({ title, updated, intro, sections }: LegalLa
         </div>
 
         <p className="text-center text-white/25 text-xs mt-8 leading-relaxed">
-          Документ носит ознакомительный характер. Реквизиты Оператора уточняются.<br />
+          Оператор: ИП Никитин Никита Александрович · ИНН 290205459711.<br />
           FlowerFlip © {new Date().getFullYear()} · Все права защищены
         </p>
       </div>
