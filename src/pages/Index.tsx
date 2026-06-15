@@ -2825,6 +2825,12 @@ function ProfileScreen({ user, onLogout, onUpdate, onStartTour }: { user: User |
                 <Icon name="Clock" size={13} className="text-white/20 flex-shrink-0" />
                 <p className="text-white/25 text-xs">Ответ в течение 24 часов в рабочие дни</p>
               </div>
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 pt-2 pb-1 border-t border-white/5 mt-1">
+                <a href="/privacy" className="text-white/30 text-xs hover:text-pink-400 transition-colors">Конфиденциальность</a>
+                <a href="/cookies" className="text-white/30 text-xs hover:text-pink-400 transition-colors">Cookie</a>
+                <a href="/terms" className="text-white/30 text-xs hover:text-pink-400 transition-colors">Соглашение</a>
+                <a href="/offer" className="text-white/30 text-xs hover:text-pink-400 transition-colors">Оферта</a>
+              </div>
               {onStartTour && (
                 <button onClick={onStartTour}
                   className="flex items-center gap-3 glass rounded-xl px-4 py-3 w-full hover:bg-white/5 transition-colors group">
