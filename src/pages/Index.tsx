@@ -267,6 +267,7 @@ function AuthScreen({ onAuth }: { onAuth: (user: User, token: string) => void })
   const [emailNotVerified, setEmailNotVerified] = useState<string | null>(null);
   const [resendSent, setResendSent] = useState(false);
   const [needCity, setNeedCity] = useState(false);
+  const [agreeTerms, setAgreeTerms] = useState(false);
   const [pendingToken, setPendingToken] = useState<string | null>(null);
   const vkContainerRef = useRef<HTMLDivElement>(null);
   const [vkSdkLoaded, setVkSdkLoaded] = useState(false);
@@ -390,6 +391,10 @@ function AuthScreen({ onAuth }: { onAuth: (user: User, token: string) => void })
   }, [finishOAuth]);
 
   const submit = async () => {
+    if (mode === "register" && !agreeTerms) {
+      setError("Подтвердите согласие с условиями, политикой конфиденциальности и офертой");
+      return;
+    }
     setError(""); setEmailNotVerified(null); setResendSent(false); setLoading(true);
     if (mode === "forgot") {
       const r = await authApi.forgotPassword(forgotEmail);
@@ -656,6 +661,25 @@ function AuthScreen({ onAuth }: { onAuth: (user: User, token: string) => void })
                   </div>
                 )}
               </div>
+
+              {mode === "register" && (
+                <label className="flex items-start gap-2.5 mt-4 cursor-pointer select-none">
+                  <button type="button" onClick={() => setAgreeTerms(v => !v)}
+                    className="w-5 h-5 rounded-md flex items-center justify-center flex-shrink-0 mt-0.5 transition-all"
+                    style={agreeTerms
+                      ? { background: "var(--grad-main)" }
+                      : { background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.15)" }}>
+                    {agreeTerms && <Icon name="Check" size={13} className="text-white" />}
+                  </button>
+                  <span className="text-white/50 text-xs leading-relaxed" onClick={() => setAgreeTerms(v => !v)}>
+                    Я принимаю{" "}
+                    <a href="/terms" target="_blank" onClick={e => e.stopPropagation()} className="text-pink-400 underline">пользовательское соглашение</a>,{" "}
+                    <a href="/offer" target="_blank" onClick={e => e.stopPropagation()} className="text-pink-400 underline">оферту</a>{" "}
+                    и даю согласие на обработку данных согласно{" "}
+                    <a href="/privacy" target="_blank" onClick={e => e.stopPropagation()} className="text-pink-400 underline">политике конфиденциальности</a>
+                  </span>
+                </label>
+              )}
 
               {error && (
                 <div className="mt-3 px-3 py-2.5 rounded-xl text-sm text-red-400 text-center"
