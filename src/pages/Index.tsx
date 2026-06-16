@@ -3312,17 +3312,17 @@ function ProfileScreen({ user, onLogout, onUpdate, onStartTour }: { user: User |
               Реферальная ссылка
             </p>
             <div className="glass rounded-xl px-3 py-2.5 text-xs text-white/50 mb-2 break-all">
-              {`https://flowerflip.online/?ref=${user.ref_code}`}
+              {`https://flowerflip.ru/?ref=${user.ref_code}`}
             </div>
             <div className="flex gap-2">
-              <button onClick={() => copyRef(`https://flowerflip.online/?ref=${user.ref_code}`)}
+              <button onClick={() => copyRef(`https://flowerflip.ru/?ref=${user.ref_code}`)}
                 className="flex-1 glass rounded-xl py-2.5 text-sm font-medium flex items-center justify-center gap-2"
                 style={{ color: "rgba(255,255,255,0.6)" }}>
                 <Icon name="Copy" size={14} />
                 Копировать ссылку
               </button>
               <button onClick={() => {
-                const shareUrl = `https://flowerflip.online/?ref=${user.ref_code}`;
+                const shareUrl = `https://flowerflip.ru/?ref=${user.ref_code}`;
                 const text = `🌸 FlowerFlip — аукцион живых букетов!\nПокупай свежие цветы дешевле рынка.\n${shareUrl}`;
                 if (navigator.share) navigator.share({ title: "FlowerFlip — аукцион живых букетов", text, url: shareUrl });
                 else copyRef(shareUrl);

@@ -9,7 +9,7 @@ CORS = {
     "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
     "Access-Control-Allow-Headers": "Content-Type, X-Authorization, Authorization",
 }
-CONTACT_EMAIL = "flowerflip@flowerflip.online"
+CONTACT_EMAIL = "flowerflip@flowerflip.ru"
 
 
 def get_conn():

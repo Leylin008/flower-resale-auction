@@ -452,6 +452,7 @@ export function AuthScreen({ onAuth }: { onAuth: (user: User, token: string) => 
                   style={{ background: "rgba(255,165,0,0.1)", border: "1px solid rgba(255,165,0,0.3)" }}>
                   <p className="text-orange-400 font-medium mb-1">📧 Email не подтверждён</p>
                   <p className="text-white/50 text-xs mb-2">Проверьте почту <b className="text-white/70">{emailNotVerified}</b> и перейдите по ссылке из письма</p>
+                  <p className="text-yellow-300/90 text-xs mb-2 leading-relaxed">📩 Письмо не пришло? Загляните в папку «Спам» — пока идут технические работы, письма иногда попадают туда.</p>
                   {resendSent
                     ? <p className="text-green-400 text-xs">✅ Письмо отправлено повторно</p>
                     : <button onClick={resendVerify} className="text-xs text-orange-400 underline underline-offset-2">Выслать письмо повторно</button>
@@ -468,6 +469,13 @@ export function AuthScreen({ onAuth }: { onAuth: (user: User, token: string) => 
                   </span>
                 ) : mode === "login" ? "ВОЙТИ" : "СОЗДАТЬ АККАУНТ"}
               </button>
+
+              {mode === "register" && (
+                <div className="mt-3 px-3 py-2.5 rounded-xl text-xs text-yellow-300/90 leading-relaxed"
+                  style={{ background: "rgba(255,209,102,0.08)", border: "1px solid rgba(255,209,102,0.2)" }}>
+                  📩 После регистрации придёт письмо для подтверждения почты. Если его нет во «Входящих» — проверьте папку «Спам»: пока идут технические работы, письма иногда попадают туда.
+                </div>
+              )}
 
               {mode === "login" && (
                 <button onClick={() => { setMode("forgot"); setError(""); setForgotEmail(loginInput.includes("@") ? loginInput : ""); }}

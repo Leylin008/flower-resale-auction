@@ -15,8 +15,8 @@ CORS = {
     "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
     "Access-Control-Allow-Headers": "Content-Type, X-Authorization, Authorization",
 }
-SITE_EMAIL = "flowerflip@flowerflip.online"
-SITE_URL = "https://flowerflip.online"
+SITE_EMAIL = "flowerflip@flowerflip.ru"
+SITE_URL = "https://flowerflip.ru"
 
 def get_conn():
     return psycopg2.connect(os.environ["DATABASE_URL"])
@@ -52,8 +52,7 @@ def send_verify_email(to_email: str, token: str, name: str):
       <h1 style="color:#ff3d8b;font-size:24px;margin-bottom:8px;">🌸 FlowerFlip</h1>
       <p style="color:#ccc;margin-bottom:24px;">Привет, {name}! Подтверди свой email чтобы получать уведомления о ставках и сделках.</p>
       <a href="{verify_url}" style="display:inline-block;background:linear-gradient(135deg,#ff3d8b,#a855f7);color:#fff;text-decoration:none;padding:14px 32px;border-radius:12px;font-weight:bold;font-size:16px;">Подтвердить email</a>
-      <p style="color:#ffd166;background:rgba(255,209,102,0.1);border-radius:10px;padding:12px;font-size:13px;margin-top:20px;">📩 Не нашли письмо? Загляните в папку «Спам» — пока идут технические работы, наши письма иногда попадают туда. Отметьте письмо как «Не спам», чтобы получать уведомления вовремя.</p>
-      <p style="color:#555;font-size:12px;margin-top:16px;">Ссылка действительна 24 часа. Если вы не регистрировались — просто проигнорируйте это письмо.</p>
+      <p style="color:#555;font-size:12px;margin-top:24px;">Ссылка действительна 24 часа. Если вы не регистрировались — просто проигнорируйте это письмо.</p>
     </div>
     """
     send_email(to_email, "Подтвердите email — FlowerFlip", html)

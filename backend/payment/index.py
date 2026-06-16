@@ -113,7 +113,7 @@ def handler(event: dict, context) -> dict:
             amount = float(body.get("amount", 0))
             if amount < 10:
                 return {"statusCode": 400, "headers": CORS, "body": json.dumps({"error": "Минимальная сумма 10 ₽"})}
-            return_url = body.get("return_url", "https://flowerflip.online")
+            return_url = body.get("return_url", "https://flowerflip.ru")
             try:
                 payment = yookassa_create_payment(amount, return_url, user["id"], user["phone"])
             except Exception as e:

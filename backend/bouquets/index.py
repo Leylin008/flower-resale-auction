@@ -15,8 +15,8 @@ CORS = {
     "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
     "Access-Control-Allow-Headers": "Content-Type, X-Authorization, Authorization",
 }
-SITE_EMAIL = "flowerflip@flowerflip.online"
-SITE_URL = "https://flowerflip.online"
+SITE_EMAIL = "flowerflip@flowerflip.ru"
+SITE_URL = "https://flowerflip.ru"
 
 def get_conn():
     return psycopg2.connect(os.environ["DATABASE_URL"])
