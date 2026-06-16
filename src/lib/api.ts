@@ -12,6 +12,7 @@ const URLS = {
   shops: "https://functions.poehali.dev/4e696c75-7ccd-435f-bcad-c1cc0b4ac528",
   banners: "https://functions.poehali.dev/7efb814d-6696-46cc-99c4-b9eb27ac3f11",
   notifications: "https://functions.poehali.dev/4e31bfb6-d58a-479b-a49c-c8f515de2d4c",
+  ai: "https://functions.poehali.dev/651432b0-8591-4557-9212-2d16386a9d79",
 };
 
 export async function fetchAllCities(): Promise<string[]> {
@@ -204,10 +205,20 @@ export const adminApi = {
     req(`${URLS.admin}/?action=reject`, { method: "POST", body: JSON.stringify({ action: "reject", withdrawal_id, comment }) }),
   stats: () => req(`${URLS.admin}/?action=stats`),
   subscriptions: () => req(`${URLS.admin}/?action=subscriptions`),
-  activateSubscription: (user_id: number, months: number, banner_addon: boolean, deduct_balance = false) =>
-    req(`${URLS.admin}/?action=activate_subscription`, { method: "POST", body: JSON.stringify({ action: "activate_subscription", user_id, months, banner_addon, deduct_balance }) }),
+  activateSubscription: (user_id: number, months: number, banner_addon: boolean, deduct_balance = false, ai_recommend = false) =>
+    req(`${URLS.admin}/?action=activate_subscription`, { method: "POST", body: JSON.stringify({ action: "activate_subscription", user_id, months, banner_addon, deduct_balance, ai_recommend }) }),
   deactivateSubscription: (user_id: number) =>
     req(`${URLS.admin}/?action=deactivate_subscription`, { method: "POST", body: JSON.stringify({ action: "deactivate_subscription", user_id }) }),
+  chats: (flaggedOnly = false) =>
+    req(`${URLS.admin}/?action=chats${flaggedOnly ? "&flagged=1" : ""}`),
+  chatMessages: (user_a_id: number, user_b_id: number) =>
+    req(`${URLS.admin}/?action=chat_messages&user_a_id=${user_a_id}&user_b_id=${user_b_id}`),
+};
+
+// AI (Mistral): консультант по букетам
+export const aiApi = {
+  consult: (message: string, history: { role: string; content: string }[], city?: string) =>
+    req(`${URLS.ai}/?action=consult`, { method: "POST", body: JSON.stringify({ action: "consult", message, history, city }) }),
 };
 
 // PAYMENT (пополнение через ЮKassa)

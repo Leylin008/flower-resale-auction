@@ -11,6 +11,7 @@ CORS = {
 }
 SUBSCRIPTION_PRICE = 1990
 BANNER_ADDON_PRICE = 990
+AI_ADDON_PRICE = 1490
 
 # Скидки по количеству месяцев: месяц → процент скидки
 DISCOUNTS = {1: 0, 2: 5, 3: 10, 6: 15, 12: 25}
@@ -45,7 +46,7 @@ def get_user_by_token(conn, token: str):
 def get_subscription(conn, user_id: int):
     with conn.cursor() as cur:
         cur.execute(
-            f"SELECT id, plan, status, started_at, expires_at, banner_addon "
+            f"SELECT id, plan, status, started_at, expires_at, banner_addon, ai_recommend "
             f"FROM {SCHEMA}.shop_subscriptions WHERE user_id = %s", (user_id,)
         )
         row = cur.fetchone()
@@ -55,6 +56,7 @@ def get_subscription(conn, user_id: int):
         "id": row[0], "plan": row[1], "status": row[2],
         "started_at": str(row[3]), "expires_at": str(row[4]) if row[4] else None,
         "banner_addon": bool(row[5]),
+        "ai_recommend": bool(row[6]),
         "is_active": row[2] == "active"
     }
 
@@ -226,6 +228,7 @@ def handler(event: dict, context) -> dict:
                 "profile": profile,
                 "subscription_price": SUBSCRIPTION_PRICE,
                 "banner_addon_price": BANNER_ADDON_PRICE,
+                "ai_addon_price": AI_ADDON_PRICE,
                 "discounts": DISCOUNTS,
             })}
 

@@ -1,7 +1,47 @@
 """Профиль: заказы, мои продажи, отзывы, чаты, сообщения, вывод средств"""
 import json
 import os
+import urllib.request
+import urllib.error
 import psycopg2
+
+MISTRAL_URL = "https://api.mistral.ai/v1/chat/completions"
+
+
+def moderate_message(text: str) -> dict:
+    """AI-модерация через Mistral. Возвращает verdict: clean|warn|block. При сбое — clean."""
+    api_key = os.environ.get("MISTRAL_API_KEY", "")
+    if not api_key:
+        return {"verdict": "clean", "reason": "", "category": ""}
+    system = (
+        "Ты — модератор сообщений на торговой площадке цветов. Проверь сообщение пользователя. "
+        "Верни строго JSON: {\"verdict\": \"clean|warn|block\", \"reason\": \"кратко на русском\", \"category\": \"...\"}. "
+        "block — мат с оскорблениями, угрозы, мошенничество, продажа запрещённого (наркотики, оружие), "
+        "разжигание ненависти, обман с уводом оплаты мимо площадки. "
+        "warn — подозрительно: обмен контактами для обхода эскроу, лёгкая грубость, спам/реклама. "
+        "clean — обычное вежливое общение по сделке."
+    )
+    payload = {
+        "model": "mistral-small-latest",
+        "messages": [{"role": "system", "content": system}, {"role": "user", "content": text[:2000]}],
+        "temperature": 0.0, "max_tokens": 150,
+        "response_format": {"type": "json_object"},
+    }
+    try:
+        req = urllib.request.Request(
+            MISTRAL_URL, data=json.dumps(payload).encode("utf-8"),
+            headers={"Content-Type": "application/json", "Authorization": f"Bearer {api_key}"},
+            method="POST",
+        )
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+        res = json.loads(data["choices"][0]["message"]["content"])
+        verdict = res.get("verdict", "clean")
+        if verdict not in ("clean", "warn", "block"):
+            verdict = "clean"
+        return {"verdict": verdict, "reason": res.get("reason", ""), "category": res.get("category", "")}
+    except Exception:
+        return {"verdict": "clean", "reason": "", "category": ""}
 
 SCHEMA = os.environ.get("MAIN_DB_SCHEMA", "t_p84229990_flower_resale_auctio")
 CORS = {
@@ -168,15 +208,27 @@ def handler(event: dict, context) -> dict:
             bouquet_id = body.get("bouquet_id")
             if not text or not receiver_id:
                 return {"statusCode": 400, "headers": CORS, "body": json.dumps({"error": "Укажите получателя и текст"})}
+
+            mod = moderate_message(text)
+            if mod["verdict"] == "block":
+                return {"statusCode": 422, "headers": CORS, "body": json.dumps({
+                    "error": "Сообщение нарушает правила площадки и не отправлено",
+                    "reason": mod.get("reason", ""), "blocked": True
+                })}
+            is_flagged = mod["verdict"] == "warn"
             with conn.cursor() as cur:
                 cur.execute(
-                    f"INSERT INTO {SCHEMA}.messages (sender_id, receiver_id, text, bouquet_id) "
-                    f"VALUES (%s, %s, %s, %s) RETURNING id, created_at",
-                    (user["id"], receiver_id, text, bouquet_id)
+                    f"INSERT INTO {SCHEMA}.messages (sender_id, receiver_id, text, bouquet_id, "
+                    f"moderation_status, moderation_reason, is_flagged) "
+                    f"VALUES (%s, %s, %s, %s, %s, %s, %s) RETURNING id, created_at",
+                    (user["id"], receiver_id, text, bouquet_id,
+                     mod["verdict"], mod.get("reason", ""), is_flagged)
                 )
                 row = cur.fetchone()
             conn.commit()
-            return {"statusCode": 200, "headers": CORS, "body": json.dumps({"id": row[0], "created_at": str(row[1])})}
+            return {"statusCode": 200, "headers": CORS, "body": json.dumps({
+                "id": row[0], "created_at": str(row[1]), "flagged": is_flagged
+            })}
 
         # Сохранить реквизиты для вывода
         if action == "save_payout" and method == "POST":

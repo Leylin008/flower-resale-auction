@@ -141,7 +141,7 @@ def handler(event: dict, context) -> dict:
                 cur.execute(
                     f"SELECT ss.id, ss.user_id, ss.plan, ss.status, ss.started_at, ss.expires_at, ss.banner_addon, "
                     f"u.name, u.email, u.phone, "
-                    f"sp.shop_name, sp.logo_url "
+                    f"sp.shop_name, sp.logo_url, ss.ai_recommend "
                     f"FROM {SCHEMA}.shop_subscriptions ss "
                     f"JOIN {SCHEMA}.users u ON u.id = ss.user_id "
                     f"LEFT JOIN {SCHEMA}.shop_profiles sp ON sp.user_id = ss.user_id "
@@ -152,7 +152,8 @@ def handler(event: dict, context) -> dict:
                 "id": r[0], "user_id": r[1], "plan": r[2], "status": r[3],
                 "started_at": str(r[4]), "expires_at": str(r[5]) if r[5] else None,
                 "banner_addon": bool(r[6]), "user_name": r[7], "user_email": r[8],
-                "user_phone": r[9], "shop_name": r[10], "logo_url": r[11]
+                "user_phone": r[9], "shop_name": r[10], "logo_url": r[11],
+                "ai_recommend": bool(r[12])
             } for r in rows]
             return {"statusCode": 200, "headers": CORS, "body": json.dumps({"subscriptions": items})}
 
@@ -162,13 +163,15 @@ def handler(event: dict, context) -> dict:
             plan = body.get("plan", "basic")
             months = int(body.get("months", 1))
             banner_addon = bool(body.get("banner_addon", False))
+            ai_recommend = bool(body.get("ai_recommend", False))
             with conn.cursor() as cur:
                 cur.execute(
-                    f"INSERT INTO {SCHEMA}.shop_subscriptions (user_id, plan, status, expires_at, banner_addon) "
-                    f"VALUES (%s, %s, 'active', NOW() + INTERVAL '{months} months', %s) "
+                    f"INSERT INTO {SCHEMA}.shop_subscriptions (user_id, plan, status, expires_at, banner_addon, ai_recommend) "
+                    f"VALUES (%s, %s, 'active', NOW() + INTERVAL '{months} months', %s, %s) "
                     f"ON CONFLICT (user_id) DO UPDATE SET plan = EXCLUDED.plan, status = 'active', "
-                    f"expires_at = NOW() + INTERVAL '{months} months', banner_addon = EXCLUDED.banner_addon",
-                    (target_user_id, plan, banner_addon)
+                    f"expires_at = NOW() + INTERVAL '{months} months', banner_addon = EXCLUDED.banner_addon, "
+                    f"ai_recommend = EXCLUDED.ai_recommend",
+                    (target_user_id, plan, banner_addon, ai_recommend)
                 )
             conn.commit()
             return {"statusCode": 200, "headers": CORS, "body": json.dumps({"ok": True, "message": "Подписка активирована"})}
@@ -213,6 +216,68 @@ def handler(event: dict, context) -> dict:
                 "active_banners": active_banners,
                 "banner_clicks_month": banner_clicks_month,
             })}
+
+        # GET chats — список всех диалогов между пользователями (для модерации)
+        if action == "chats":
+            only_flagged = qs.get("flagged") == "1"
+            flag_cond = "AND m.is_flagged = true" if only_flagged else ""
+            with conn.cursor() as cur:
+                cur.execute(
+                    f"SELECT DISTINCT ON (LEAST(m.sender_id, m.receiver_id), GREATEST(m.sender_id, m.receiver_id)) "
+                    f"LEAST(m.sender_id, m.receiver_id) AS a, GREATEST(m.sender_id, m.receiver_id) AS b, "
+                    f"m.text, m.created_at, "
+                    f"ua.name, ub.name, "
+                    f"(SELECT COUNT(*) FROM {SCHEMA}.messages mm "
+                    f" WHERE LEAST(mm.sender_id, mm.receiver_id) = LEAST(m.sender_id, m.receiver_id) "
+                    f" AND GREATEST(mm.sender_id, mm.receiver_id) = GREATEST(m.sender_id, m.receiver_id)), "
+                    f"(SELECT COUNT(*) FROM {SCHEMA}.messages mm "
+                    f" WHERE LEAST(mm.sender_id, mm.receiver_id) = LEAST(m.sender_id, m.receiver_id) "
+                    f" AND GREATEST(mm.sender_id, mm.receiver_id) = GREATEST(m.sender_id, m.receiver_id) "
+                    f" AND mm.is_flagged = true) "
+                    f"FROM {SCHEMA}.messages m "
+                    f"JOIN {SCHEMA}.users ua ON ua.id = LEAST(m.sender_id, m.receiver_id) "
+                    f"JOIN {SCHEMA}.users ub ON ub.id = GREATEST(m.sender_id, m.receiver_id) "
+                    f"WHERE 1=1 {flag_cond} "
+                    f"ORDER BY LEAST(m.sender_id, m.receiver_id), GREATEST(m.sender_id, m.receiver_id), m.created_at DESC "
+                    f"LIMIT 200"
+                )
+                rows = cur.fetchall()
+            chats = [{
+                "user_a_id": r[0], "user_b_id": r[1], "last_message": r[2],
+                "last_at": str(r[3]), "user_a_name": r[4], "user_b_name": r[5],
+                "total": r[6], "flagged_count": r[7],
+            } for r in rows]
+            return {"statusCode": 200, "headers": CORS, "body": json.dumps({"chats": chats})}
+
+        # GET chat_messages — все сообщения диалога двух пользователей + id связанных сделок
+        if action == "chat_messages":
+            ua = int(qs.get("user_a_id", 0))
+            ub = int(qs.get("user_b_id", 0))
+            if not ua or not ub:
+                return {"statusCode": 400, "headers": CORS, "body": json.dumps({"error": "user_a_id и user_b_id обязательны"})}
+            lo, hi = min(ua, ub), max(ua, ub)
+            with conn.cursor() as cur:
+                cur.execute(
+                    f"SELECT m.id, m.sender_id, m.receiver_id, m.text, m.created_at, "
+                    f"m.is_flagged, m.moderation_status, m.moderation_reason, "
+                    f"m.bouquet_id, b.title, "
+                    f"(SELECT o.id FROM {SCHEMA}.orders o WHERE o.bouquet_id = m.bouquet_id "
+                    f" AND ((o.buyer_id = %s AND o.seller_id = %s) OR (o.buyer_id = %s AND o.seller_id = %s)) "
+                    f" ORDER BY o.created_at DESC LIMIT 1) AS deal_id "
+                    f"FROM {SCHEMA}.messages m "
+                    f"LEFT JOIN {SCHEMA}.bouquets b ON b.id = m.bouquet_id "
+                    f"WHERE LEAST(m.sender_id, m.receiver_id) = %s AND GREATEST(m.sender_id, m.receiver_id) = %s "
+                    f"ORDER BY m.created_at ASC LIMIT 500",
+                    (lo, hi, hi, lo, lo, hi)
+                )
+                rows = cur.fetchall()
+            msgs = [{
+                "id": r[0], "sender_id": r[1], "receiver_id": r[2], "text": r[3],
+                "created_at": str(r[4]), "is_flagged": bool(r[5]),
+                "moderation_status": r[6], "moderation_reason": r[7],
+                "bouquet_id": r[8], "bouquet_title": r[9], "deal_id": r[10],
+            } for r in rows]
+            return {"statusCode": 200, "headers": CORS, "body": json.dumps({"messages": msgs})}
 
         return {"statusCode": 400, "headers": CORS, "body": json.dumps({"error": "Unknown action"})}
     finally:

@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import Icon from "@/components/ui/icon";
 import { authApi, bouquetsApi, profileApi, uploadApi, escrowApi, oauthApi, adminApi, paymentApi, shopsApi, bannersApi, notificationsApi } from "@/lib/api";
 import AdBanners from "@/components/AdBanners";
+import AiConsultant from "@/components/AiConsultant";
 import NotificationBell from "@/components/NotificationBell";
 import { OnboardingTour, useOnboarding } from "@/components/OnboardingTour";
 import { useCities } from "@/lib/cities";
@@ -1718,6 +1719,7 @@ function DealsScreen({ user, onPaySuccess }: { user: User | null; onPaySuccess?:
   const [dealMessages, setDealMessages] = useState<Message[]>([]);
   const [dealChatText, setDealChatText] = useState("");
   const [dealChatSending, setDealChatSending] = useState(false);
+  const [dealChatErr, setDealChatErr] = useState("");
   const dealChatBottomRef = useRef<HTMLDivElement>(null);
 
   const load = async () => {
@@ -1745,13 +1747,17 @@ function DealsScreen({ user, onPaySuccess }: { user: User | null; onPaySuccess?:
 
   const sendDealMessage = async () => {
     if (!active || !dealChatText.trim() || dealChatSending || !user) return;
-    setDealChatSending(true);
+    setDealChatSending(true); setDealChatErr("");
     const otherId = active.is_buyer ? active.seller_id : active.buyer_id;
     const r = await profileApi.sendMessage(otherId, dealChatText.trim());
     setDealChatSending(false);
     if (r.ok) {
       setDealMessages(prev => [...prev, { id: r.data.id, sender_id: user.id, text: dealChatText.trim(), created_at: r.data.created_at, is_read: false }]);
       setDealChatText("");
+    } else if (r.status === 422 || r.data?.blocked) {
+      setDealChatErr(r.data.error || "Сообщение нарушает правила площадки");
+    } else {
+      setDealChatErr(r.data?.error || "Не удалось отправить сообщение");
     }
   };
 
@@ -2099,15 +2105,24 @@ function DealsScreen({ user, onPaySuccess }: { user: User | null; onPaySuccess?:
               <div ref={dealChatBottomRef} />
             </div>
             {active.escrow_status !== "completed" && active.escrow_status !== "dispute" && (
-              <div className="flex gap-2">
-                <input value={dealChatText} onChange={e => setDealChatText(e.target.value)}
-                  onKeyDown={e => e.key === "Enter" && sendDealMessage()}
-                  className="flex-1 glass rounded-xl px-3 py-2.5 text-white placeholder:text-white/30 text-sm outline-none"
-                  placeholder="Сообщение продавцу..." />
-                <button onClick={sendDealMessage} disabled={dealChatSending || !dealChatText.trim()}
-                  className="btn-gradient w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 disabled:opacity-40">
-                  <Icon name="Send" size={14} className="text-white" />
-                </button>
+              <div>
+                {dealChatErr && (
+                  <div className="flex items-start gap-2 mb-2 px-3 py-2 rounded-xl text-xs"
+                    style={{ background: "rgba(239,68,68,0.12)", border: "1px solid rgba(239,68,68,0.3)", color: "#fca5a5" }}>
+                    <Icon name="ShieldAlert" size={14} className="flex-shrink-0 mt-0.5" />
+                    <span>{dealChatErr}</span>
+                  </div>
+                )}
+                <div className="flex gap-2">
+                  <input value={dealChatText} onChange={e => { setDealChatText(e.target.value); if (dealChatErr) setDealChatErr(""); }}
+                    onKeyDown={e => e.key === "Enter" && sendDealMessage()}
+                    className="flex-1 glass rounded-xl px-3 py-2.5 text-white placeholder:text-white/30 text-sm outline-none"
+                    placeholder="Сообщение продавцу..." />
+                  <button onClick={sendDealMessage} disabled={dealChatSending || !dealChatText.trim()}
+                    className="btn-gradient w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 disabled:opacity-40">
+                    <Icon name="Send" size={14} className="text-white" />
+                  </button>
+                </div>
               </div>
             )}
           </div>
@@ -3424,7 +3439,7 @@ interface AdminBanner {
 }
 
 function AdminScreen({ user }: { user: User | null }) {
-  const [adminTab, setAdminTab] = useState<"withdrawals" | "banners" | "shops">("withdrawals");
+  const [adminTab, setAdminTab] = useState<"withdrawals" | "banners" | "shops" | "chats">("withdrawals");
   const [stats, setStats] = useState<AdminStats | null>(null);
   const [items, setItems] = useState<AdminWithdrawal[]>([]);
   const [filter, setFilter] = useState("pending");
@@ -3439,9 +3454,15 @@ function AdminScreen({ user }: { user: User | null }) {
   const bannerFileRef = useRef<HTMLInputElement>(null);
 
   // Подписки магазинов
-  const [subscriptions, setSubscriptions] = useState<{ id: number; user_id: number; user_name: string; user_email?: string; shop_name?: string; status: string; expires_at?: string; banner_addon: boolean }[]>([]);
-  const [subForm, setSubForm] = useState<{ user_id: string; months: number; banner_addon: boolean; deduct_balance: boolean }>({ user_id: "", months: 1, banner_addon: false, deduct_balance: false });
+  const [subscriptions, setSubscriptions] = useState<{ id: number; user_id: number; user_name: string; user_email?: string; shop_name?: string; status: string; expires_at?: string; banner_addon: boolean; ai_recommend?: boolean }[]>([]);
+  const [subForm, setSubForm] = useState<{ user_id: string; months: number; banner_addon: boolean; deduct_balance: boolean; ai_recommend: boolean }>({ user_id: "", months: 1, banner_addon: false, deduct_balance: false, ai_recommend: false });
   const [subMsg, setSubMsg] = useState("");
+
+  // Чаты (модерация)
+  const [chats, setChats] = useState<{ user_a_id: number; user_b_id: number; user_a_name: string; user_b_name: string; last_message: string; last_at: string; total: number; flagged_count: number }[]>([]);
+  const [chatsFlaggedOnly, setChatsFlaggedOnly] = useState(false);
+  const [openChat, setOpenChat] = useState<{ a: number; b: number; names: string } | null>(null);
+  const [chatMsgs, setChatMsgs] = useState<{ id: number; sender_id: number; text: string; created_at: string; is_flagged: boolean; moderation_status: string; moderation_reason?: string; bouquet_title?: string; deal_id?: number }[]>([]);
 
   const load = useCallback(() => {
     adminApi.stats().then(r => { if (r.ok) setStats(r.data); });
@@ -3453,7 +3474,15 @@ function AdminScreen({ user }: { user: User | null }) {
   useEffect(() => {
     if (adminTab === "banners") bannersApi.adminList().then(r => { if (r.ok) setBanners(r.data.banners); });
     if (adminTab === "shops") adminApi.subscriptions().then(r => { if (r.ok) setSubscriptions(r.data.subscriptions); });
-  }, [adminTab]);
+    if (adminTab === "chats") adminApi.chats(chatsFlaggedOnly).then(r => { if (r.ok) setChats(r.data.chats); });
+  }, [adminTab, chatsFlaggedOnly]);
+
+  const loadChat = async (a: number, b: number, names: string) => {
+    setOpenChat({ a, b, names });
+    setChatMsgs([]);
+    const r = await adminApi.chatMessages(a, b);
+    if (r.ok) setChatMsgs(r.data.messages);
+  };
 
   const act = async (id: number, type: "approve" | "reject") => {
     setBusy(id);
@@ -3496,7 +3525,7 @@ function AdminScreen({ user }: { user: User | null }) {
 
   const activateSub = async () => {
     if (!subForm.user_id) { setSubMsg("Укажите ID пользователя"); return; }
-    const r = await adminApi.activateSubscription(parseInt(subForm.user_id), subForm.months, subForm.banner_addon, subForm.deduct_balance);
+    const r = await adminApi.activateSubscription(parseInt(subForm.user_id), subForm.months, subForm.banner_addon, subForm.deduct_balance, subForm.ai_recommend);
     if (r.ok) {
       const deducted = r.data.deducted || 0;
       setSubMsg(`Подписка активирована!${deducted > 0 ? ` Списано ${deducted.toLocaleString("ru-RU")} ₽` : ""}`);
@@ -3550,10 +3579,10 @@ function AdminScreen({ user }: { user: User | null }) {
         </div>
       )}
 
-      <div className="flex gap-2 mb-4">
-        {([["withdrawals", "Выводы"], ["banners", "Баннеры"], ["shops", "Магазины"]] as const).map(([k, l]) => (
+      <div className="flex gap-2 mb-4 flex-wrap">
+        {([["withdrawals", "Выводы"], ["banners", "Баннеры"], ["shops", "Магазины"], ["chats", "Чаты"]] as const).map(([k, l]) => (
           <button key={k} onClick={() => setAdminTab(k)}
-            className="flex-1 py-2.5 rounded-xl text-xs font-medium transition-all"
+            className="flex-1 min-w-[70px] py-2.5 rounded-xl text-xs font-medium transition-all"
             style={adminTab === k ? { background: "var(--grad-main)", color: "#fff" } : { background: "rgba(255,255,255,0.05)", color: "rgba(255,255,255,0.4)" }}>
             {l}
           </button>
@@ -3741,8 +3770,16 @@ function AdminScreen({ user }: { user: User | null }) {
                   {subForm.banner_addon ? "Баннеры включены" : "Без баннеров"}
                 </button>
               </div>
+              <div>
+                <label className="text-white/40 text-xs block mb-1">+ AI-рекомендации букетов</label>
+                <button onClick={() => setSubForm(p => ({ ...p, ai_recommend: !p.ai_recommend }))}
+                  className="w-full rounded-xl py-2.5 text-sm transition-all"
+                  style={subForm.ai_recommend ? { background: "rgba(168,85,247,0.2)", color: "#a855f7" } : { background: "rgba(255,255,255,0.05)", color: "rgba(255,255,255,0.4)" }}>
+                  {subForm.ai_recommend ? "AI-продвижение включено" : "Без AI-продвижения"}
+                </button>
+              </div>
               <PriceBreakdown
-                basePrice={1990 + (subForm.banner_addon ? 990 : 0)}
+                basePrice={1990 + (subForm.banner_addon ? 990 : 0) + (subForm.ai_recommend ? 1490 : 0)}
                 months={subForm.months}
                 label="Итоговая сумма"
               />
@@ -3769,10 +3806,74 @@ function AdminScreen({ user }: { user: User | null }) {
                   </div>
                   <p className="text-white/40 text-xs">ID: {s.user_id} · {s.user_email || "—"}</p>
                   {s.expires_at && <p className="text-white/30 text-xs">До: {new Date(s.expires_at).toLocaleDateString("ru-RU")}</p>}
-                  {s.banner_addon && <span className="text-xs text-pink-400">+ баннеры</span>}
+                  <div className="flex gap-2 mt-1">
+                    {s.banner_addon && <span className="text-xs text-pink-400">+ баннеры</span>}
+                    {s.ai_recommend && <span className="text-xs" style={{ color: "#a855f7" }}>+ AI-реклама</span>}
+                  </div>
                 </div>
               ))}
             </div>
+          )}
+        </div>
+      )}
+
+      {adminTab === "chats" && (
+        <div className="space-y-3">
+          {openChat ? (
+            <div>
+              <button onClick={() => setOpenChat(null)} className="flex items-center gap-1 text-white/50 text-sm mb-3">
+                <Icon name="ChevronLeft" size={16} /> Все чаты
+              </button>
+              <p className="text-white font-medium text-sm mb-1">{openChat.names}</p>
+              <p className="text-white/30 text-xs mb-3">Полная переписка фиксируется и хранится</p>
+              <div className="space-y-2">
+                {chatMsgs.length === 0 ? (
+                  <p className="text-white/20 text-xs text-center py-6">Загрузка...</p>
+                ) : chatMsgs.map(m => (
+                  <div key={m.id} className={`flex ${m.sender_id === openChat.a ? "justify-start" : "justify-end"}`}>
+                    <div className="max-w-[85%] px-3 py-2 rounded-2xl text-sm"
+                      style={m.is_flagged
+                        ? { background: "rgba(245,158,11,0.15)", border: "1px solid rgba(245,158,11,0.4)", color: "#fde68a" }
+                        : { background: "rgba(255,255,255,0.07)", color: "rgba(255,255,255,0.85)" }}>
+                      <p className="whitespace-pre-wrap">{m.text}</p>
+                      <div className="flex items-center gap-2 mt-1 flex-wrap">
+                        <span className="text-[10px] opacity-50">{new Date(m.created_at).toLocaleString("ru-RU")}</span>
+                        {m.deal_id && <span className="text-[10px] px-1.5 py-0.5 rounded" style={{ background: "rgba(168,85,247,0.2)", color: "#c4b5fd" }}>Сделка #{m.deal_id}</span>}
+                        {m.bouquet_title && <span className="text-[10px] opacity-40 truncate max-w-[120px]">🌷 {m.bouquet_title}</span>}
+                        {m.is_flagged && <span className="text-[10px] text-amber-400">⚠ {m.moderation_reason || "флаг модерации"}</span>}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <>
+              <button onClick={() => setChatsFlaggedOnly(v => !v)}
+                className="flex items-center gap-2 rounded-xl px-3 py-2 text-xs transition-all"
+                style={chatsFlaggedOnly ? { background: "rgba(245,158,11,0.15)", color: "#fbbf24" } : { background: "rgba(255,255,255,0.05)", color: "rgba(255,255,255,0.4)" }}>
+                <Icon name={chatsFlaggedOnly ? "CheckSquare" : "Square"} size={14} />
+                Только с пометками модерации
+              </button>
+              {chats.length === 0 ? (
+                <div className="text-center py-10"><span className="text-3xl block mb-2">💬</span><p className="text-white/30 text-sm">Чатов нет</p></div>
+              ) : (
+                <div className="space-y-2">
+                  {chats.map(c => (
+                    <button key={`${c.user_a_id}-${c.user_b_id}`}
+                      onClick={() => loadChat(c.user_a_id, c.user_b_id, `${c.user_a_name} ↔ ${c.user_b_name}`)}
+                      className="w-full glass rounded-2xl p-3 text-left hover:bg-white/5 transition-colors">
+                      <div className="flex items-center justify-between mb-1">
+                        <p className="text-white text-sm font-medium truncate">{c.user_a_name} ↔ {c.user_b_name}</p>
+                        {c.flagged_count > 0 && <span className="text-xs px-1.5 py-0.5 rounded flex-shrink-0" style={{ background: "rgba(245,158,11,0.2)", color: "#fbbf24" }}>⚠ {c.flagged_count}</span>}
+                      </div>
+                      <p className="text-white/40 text-xs truncate">{c.last_message}</p>
+                      <p className="text-white/25 text-[10px] mt-1">{c.total} сообщений · ID {c.user_a_id}/{c.user_b_id} · {new Date(c.last_at).toLocaleDateString("ru-RU")}</p>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </>
           )}
         </div>
       )}
@@ -4071,6 +4172,17 @@ export default function Index() {
 
       {bidModal && <BidModal bouquet={bidModal} onClose={() => setBidModal(null)} onBid={handleBid} />}
       {showOnboarding && <OnboardingTour onFinish={finishOnboarding} />}
+
+      {user && (
+        <AiConsultant
+          city={user.city}
+          onOpenBouquet={async (id) => {
+            const r = await bouquetsApi.detail(id);
+            if (r.ok && r.data.bouquet) setBidModal(r.data.bouquet);
+            else setActiveTab("catalog");
+          }}
+        />
+      )}
     </div>
   );
 }
