@@ -43,6 +43,15 @@ def handler(event: dict, context) -> dict:
 
     conn = get_conn()
     try:
+        # Публичное чтение флага режима доработки (без авторизации)
+        if action == "public_settings":
+            with conn.cursor() as cur:
+                cur.execute(f"SELECT value FROM {SCHEMA}.app_settings WHERE key = 'maintenance_mode'")
+                row = cur.fetchone()
+            return {"statusCode": 200, "headers": CORS, "body": json.dumps({
+                "maintenance_mode": (row[0] if row else "false") == "true"
+            })}
+
         admin = get_admin(conn, token)
         if not admin:
             return {"statusCode": 403, "headers": CORS, "body": json.dumps({"error": "Доступ только для администратора"})}
@@ -278,6 +287,29 @@ def handler(event: dict, context) -> dict:
                 "bouquet_id": r[8], "bouquet_title": r[9], "deal_id": r[10],
             } for r in rows]
             return {"statusCode": 200, "headers": CORS, "body": json.dumps({"messages": msgs})}
+
+        # GET settings — текущие настройки платформы
+        if action == "settings":
+            with conn.cursor() as cur:
+                cur.execute(f"SELECT key, value FROM {SCHEMA}.app_settings")
+                rows = cur.fetchall()
+            settings = {r[0]: r[1] for r in rows}
+            return {"statusCode": 200, "headers": CORS, "body": json.dumps({
+                "maintenance_mode": settings.get("maintenance_mode", "false") == "true"
+            })}
+
+        # POST set_maintenance — включить/выключить режим доработки (блокировка денег)
+        if action == "set_maintenance" and method == "POST":
+            enabled = bool(body.get("enabled", False))
+            with conn.cursor() as cur:
+                cur.execute(
+                    f"INSERT INTO {SCHEMA}.app_settings (key, value, updated_at) "
+                    f"VALUES ('maintenance_mode', %s, NOW()) "
+                    f"ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()",
+                    ("true" if enabled else "false",)
+                )
+            conn.commit()
+            return {"statusCode": 200, "headers": CORS, "body": json.dumps({"ok": True, "maintenance_mode": enabled})}
 
         return {"statusCode": 400, "headers": CORS, "body": json.dumps({"error": "Unknown action"})}
     finally:

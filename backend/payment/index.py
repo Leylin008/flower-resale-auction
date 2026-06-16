@@ -18,6 +18,19 @@ def get_conn():
     return psycopg2.connect(os.environ["DATABASE_URL"])
 
 
+MAINTENANCE_MSG = "Платформа на этапе доработки — пополнение временно недоступно."
+
+
+def is_maintenance(conn) -> bool:
+    try:
+        with conn.cursor() as cur:
+            cur.execute(f"SELECT value FROM {SCHEMA}.app_settings WHERE key = 'maintenance_mode'")
+            row = cur.fetchone()
+        return bool(row) and row[0] == "true"
+    except Exception:
+        return False
+
+
 def get_user(conn, token: str):
     if not token:
         return None
@@ -95,6 +108,8 @@ def handler(event: dict, context) -> dict:
             user = get_user(conn, token)
             if not user:
                 return {"statusCode": 401, "headers": CORS, "body": json.dumps({"error": "Не авторизован"})}
+            if is_maintenance(conn):
+                return {"statusCode": 423, "headers": CORS, "body": json.dumps({"error": MAINTENANCE_MSG, "maintenance": True})}
             amount = float(body.get("amount", 0))
             if amount < 10:
                 return {"statusCode": 400, "headers": CORS, "body": json.dumps({"error": "Минимальная сумма 10 ₽"})}

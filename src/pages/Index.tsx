@@ -4,6 +4,7 @@ import { authApi, bouquetsApi, profileApi, uploadApi, escrowApi, oauthApi, admin
 import AdBanners from "@/components/AdBanners";
 import AiConsultant from "@/components/AiConsultant";
 import NotificationBell from "@/components/NotificationBell";
+import { useMaintenance, MAINTENANCE_TEXT } from "@/lib/maintenance";
 import { OnboardingTour, useOnboarding } from "@/components/OnboardingTour";
 import { useCities } from "@/lib/cities";
 import Partners from "@/pages/Partners";
@@ -734,12 +735,17 @@ function BidModal({ bouquet, onClose, onBid }: { bouquet: Bouquet; onClose: () =
   const [amount, setAmount] = useState(bouquet.current_price + bouquet.min_step);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const { maintenance } = useMaintenance();
 
   const submit = async () => {
+    if (maintenance) { setError("Платформа на этапе доработки — ставки временно недоступны"); return; }
     setLoading(true); setError("");
     const r = await bouquetsApi.bid(bouquet.id, amount);
     setLoading(false);
-    if (!r.ok) { setError(r.data.error); return; }
+    if (!r.ok) {
+      setError(r.status === 423 ? r.data.error : r.data.error);
+      return;
+    }
     onBid(bouquet.id, amount); onClose();
   };
 
@@ -789,8 +795,11 @@ function BidModal({ bouquet, onClose, onBid }: { bouquet: Bouquet; onClose: () =
             <p className="text-white/40 text-xs mt-1">Перейдите по ссылке из письма, затем попробуйте снова</p>
           </div>
         )}
-        <button onClick={submit} disabled={loading}
-          className="btn-gradient w-full rounded-2xl py-4 mt-5 font-oswald text-lg tracking-wide animate-pulse-glow disabled:opacity-50">
+        {maintenance && (
+          <p className="text-amber-400 text-xs mt-4 text-center">Демо-режим: ставки временно отключены</p>
+        )}
+        <button onClick={submit} disabled={loading || maintenance}
+          className="btn-gradient w-full rounded-2xl py-4 mt-3 font-oswald text-lg tracking-wide animate-pulse-glow disabled:opacity-40">
           {loading ? "..." : "СДЕЛАТЬ СТАВКУ"}
         </button>
       </div>
@@ -1710,6 +1719,7 @@ function DealsScreen({ user, onPaySuccess }: { user: User | null; onPaySuccess?:
   const [active, setActive] = useState<Deal | null>(null);
   const [actionLoading, setActionLoading] = useState(false);
   const [msg, setMsg] = useState("");
+  const { maintenance } = useMaintenance();
   const [disputeText, setDisputeText] = useState("");
   const [showDispute, setShowDispute] = useState(false);
   const [reviewModal, setReviewModal] = useState<{ deal: Deal } | null>(null);
@@ -1762,6 +1772,7 @@ function DealsScreen({ user, onPaySuccess }: { user: User | null; onPaySuccess?:
   };
 
   const doPay = async (deal: Deal) => {
+    if (maintenance) { setMsg("Платформа на этапе доработки — оплата временно недоступна"); return; }
     setActionLoading(true); setMsg("");
     const r = await escrowApi.pay(deal.id);
     setActionLoading(false);
@@ -1923,6 +1934,15 @@ function DealsScreen({ user, onPaySuccess }: { user: User | null; onPaySuccess?:
                   <Icon name="AlertCircle" size={14} className="text-red-400 flex-shrink-0" />
                   <p className="text-red-400 text-xs">Недостаточно средств. Пополните баланс в профиле.</p>
                 </div>
+              </div>
+            ) : maintenance ? (
+              <div className="text-center">
+                <div className="w-full rounded-2xl py-4 font-oswald text-lg tracking-wide flex items-center justify-center gap-2 text-white/40"
+                  style={{ background: "rgba(255,255,255,0.05)" }}>
+                  <Icon name="Wrench" size={18} />
+                  ОПЛАТА ОТКЛЮЧЕНА
+                </div>
+                <p className="text-amber-400 text-xs mt-2">Платформа на этапе доработки — оплата временно недоступна</p>
               </div>
             ) : (
               <button onClick={() => doPay(active)} disabled={actionLoading}
@@ -2319,6 +2339,7 @@ function ShopBannerRequestForm({ user, isShopSubscriber, bannerPrice = 990 }: { 
   const [months, setMonths] = useState(1);
   const [sent, setSent] = useState(false);
   const [agree, setAgree] = useState(false);
+  const { maintenance } = useMaintenance();
 
   const total = calcTotal(bannerPrice, months);
   const discount = DISCOUNT_TABLE[months] ?? 0;
@@ -2414,7 +2435,15 @@ function ShopBannerRequestForm({ user, isShopSubscriber, bannerPrice = 990 }: { 
           <a href="/privacy" target="_blank" onClick={e => e.stopPropagation()} className="text-pink-400 underline">политике</a>
         </span>
       </label>
-      {agree ? (
+      {maintenance ? (
+        <div className="text-center">
+          <div className="w-full rounded-2xl py-3 font-oswald tracking-wide text-white/40 text-center"
+            style={{ background: "rgba(255,255,255,0.05)" }}>
+            ЗАЯВКИ ВРЕМЕННО ОТКЛЮЧЕНЫ
+          </div>
+          <p className="text-amber-400 text-xs mt-2">Платформа на этапе доработки</p>
+        </div>
+      ) : agree ? (
         <a
           href={`mailto:flowerflip@flowerflip.ru?subject=${encodeURIComponent("Заявка на рекламный баннер")}&body=${encodeURIComponent(emailBody)}`}
           onClick={() => { if (title && contactPhone) setSent(true); }}
@@ -2435,6 +2464,7 @@ function ShopBannerRequestForm({ user, isShopSubscriber, bannerPrice = 990 }: { 
 function ProfileScreen({ user, onLogout, onUpdate, onStartTour }: { user: User | null; onLogout: () => void; onUpdate?: () => void; onStartTour?: () => void }) {
   const [tab, setTab] = useState<"about" | "reviews" | "referral" | "settings" | "shop">("about");
   const [copied, setCopied] = useState(false);
+  const { maintenance } = useMaintenance();
 
   const copyRef = (text: string) => {
     navigator.clipboard.writeText(text).then(() => { setCopied(true); setTimeout(() => setCopied(false), 2000); });
@@ -2592,6 +2622,7 @@ function ProfileScreen({ user, onLogout, onUpdate, onStartTour }: { user: User |
   };
 
   const doWithdraw = async () => {
+    if (maintenance) { setWithdrawMsg("Платформа на этапе доработки — вывод временно недоступен"); return; }
     const amount = parseFloat(withdrawAmount);
     if (!amount) { setWithdrawMsg("Укажите сумму"); return; }
     const r = await profileApi.withdraw(amount, payoutMethod, payoutDetails.trim());
@@ -2600,6 +2631,7 @@ function ProfileScreen({ user, onLogout, onUpdate, onStartTour }: { user: User |
   };
 
   const doTopup = async () => {
+    if (maintenance) { setWithdrawMsg("Платформа на этапе доработки — пополнение временно недоступно"); return; }
     const amount = parseFloat(withdrawAmount);
     if (!amount || amount < 10) { setWithdrawMsg("Минимальная сумма пополнения 10 ₽"); return; }
     const r = await paymentApi.topup(amount);
@@ -2711,14 +2743,17 @@ function ProfileScreen({ user, onLogout, onUpdate, onStartTour }: { user: User |
               <span className="text-white/40 text-sm">₽</span>
             </div>
             {withdrawMsg && <p className={`text-sm mb-3 ${withdrawMsg.includes("принята") ? "text-green-400" : "text-red-400"}`}>{withdrawMsg}</p>}
+            {maintenance && (
+              <p className="text-amber-400 text-xs mb-2 text-center">Платформа на этапе доработки — пополнение и вывод временно отключены</p>
+            )}
             <div className="flex gap-2">
-              <button onClick={doTopup}
-                className="flex-1 glass rounded-xl py-3 font-oswald text-base tracking-wide text-white hover:bg-white/10 transition-colors">
+              <button onClick={doTopup} disabled={maintenance}
+                className="flex-1 glass rounded-xl py-3 font-oswald text-base tracking-wide text-white hover:bg-white/10 transition-colors disabled:opacity-40">
                 ПОПОЛНИТЬ
               </button>
               <button onClick={doWithdraw}
-                className="flex-1 btn-gradient rounded-xl py-3 font-oswald text-base tracking-wide"
-                disabled={user.balance <= 0}>
+                className="flex-1 btn-gradient rounded-xl py-3 font-oswald text-base tracking-wide disabled:opacity-40"
+                disabled={user.balance <= 0 || maintenance}>
                 ВЫВЕСТИ
               </button>
             </div>
@@ -3006,7 +3041,15 @@ function ProfileScreen({ user, onLogout, onUpdate, onStartTour }: { user: User |
                   </span>
                 </label>
                 {shopMsg && <p className={`text-xs mt-2 ${shopMsg.includes("отправлена") ? "text-green-400" : "text-red-400"}`}>{shopMsg}</p>}
-                {shopAgree ? (
+                {maintenance ? (
+                  <div className="text-center mt-3">
+                    <div className="w-full rounded-2xl py-3 font-oswald tracking-wide text-white/40 text-center"
+                      style={{ background: "rgba(255,255,255,0.05)" }}>
+                      ЗАЯВКИ ВРЕМЕННО ОТКЛЮЧЕНЫ
+                    </div>
+                    <p className="text-amber-400 text-xs mt-2">Платформа на этапе доработки</p>
+                  </div>
+                ) : shopAgree ? (
                   <a
                     href={`mailto:flowerflip@flowerflip.ru?subject=${encodeURIComponent("Заявка на подписку магазина")}&body=${encodeURIComponent(`Название: ${shopName}\nГород: ${shopAddress}\nТелефон: ${shopPhone}\nОписание: ${shopDesc}\nСрок: ${shopMonths} мес.\nСумма: ${calcTotal(shopStatus.subscription_price || 1990, shopMonths).toLocaleString("ru-RU")} ₽${DISCOUNT_TABLE[shopMonths] ? ` (скидка ${DISCOUNT_TABLE[shopMonths]}%)` : ""}\n\nПользователь ID: ${user?.id}\nEmail: ${user?.email || "не указан"}`)}`}
                     onClick={() => setShopMsg("Заявка отправлена! Мы свяжемся с вами в течение 24 часов.")}
@@ -3440,6 +3483,16 @@ interface AdminBanner {
 
 function AdminScreen({ user }: { user: User | null }) {
   const [adminTab, setAdminTab] = useState<"withdrawals" | "banners" | "shops" | "chats">("withdrawals");
+  const { maintenance, setMaintenance, refresh: refreshMaintenance } = useMaintenance();
+  const [maintBusy, setMaintBusy] = useState(false);
+
+  const toggleMaintenance = async () => {
+    setMaintBusy(true);
+    const next = !maintenance;
+    const r = await adminApi.setMaintenance(next);
+    setMaintBusy(false);
+    if (r.ok) { setMaintenance(next); refreshMaintenance(); }
+  };
   const [stats, setStats] = useState<AdminStats | null>(null);
   const [items, setItems] = useState<AdminWithdrawal[]>([]);
   const [filter, setFilter] = useState("pending");
@@ -3549,6 +3602,26 @@ function AdminScreen({ user }: { user: User | null }) {
   return (
     <div className="animate-fade-in">
       <h2 className="font-oswald text-2xl font-bold text-white mb-3">Админ-панель</h2>
+
+      <div className="glass rounded-2xl p-4 mb-4"
+        style={{ border: maintenance ? "1px solid rgba(245,158,11,0.4)" : "1px solid rgba(74,222,128,0.3)" }}>
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
+            style={{ background: maintenance ? "rgba(245,158,11,0.15)" : "rgba(74,222,128,0.15)" }}>
+            <Icon name={maintenance ? "Wrench" : "CheckCircle2"} size={18} style={{ color: maintenance ? "#fbbf24" : "#4ade80" }} />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-white text-sm font-medium">Режим доработки</p>
+            <p className="text-white/40 text-xs">{maintenance ? "Покупки, продажи и оплаты отключены" : "Все денежные функции работают"}</p>
+          </div>
+          <button onClick={toggleMaintenance} disabled={maintBusy}
+            className="relative w-12 h-7 rounded-full transition-all flex-shrink-0 disabled:opacity-50"
+            style={{ background: maintenance ? "#f59e0b" : "rgba(255,255,255,0.15)" }}>
+            <span className="absolute top-1 w-5 h-5 rounded-full bg-white transition-all"
+              style={{ left: maintenance ? "26px" : "4px" }} />
+          </button>
+        </div>
+      </div>
 
       <a href="/investor"
         className="flex items-center gap-3 mb-4 rounded-2xl p-4 transition-all hover:scale-[1.01]"
@@ -3960,6 +4033,7 @@ export default function Index() {
   const [authChecked, setAuthChecked] = useState(false);
   const [activeTab, setActiveTab] = useState("auctions");
   const [bidModal, setBidModal] = useState<Bouquet | null>(null);
+  const { maintenance } = useMaintenance();
   const { show: showOnboarding, start: startOnboarding, finish: finishOnboarding, triggerIfNew } = useOnboarding();
 
   useEffect(() => {
@@ -4084,6 +4158,16 @@ export default function Index() {
         <div className="absolute -top-40 -left-40 w-96 h-96 rounded-full opacity-10" style={{ background: "radial-gradient(circle, #ff3d8b, transparent)" }} />
         <div className="absolute top-1/3 -right-40 w-80 h-80 rounded-full opacity-8" style={{ background: "radial-gradient(circle, #a855f7, transparent)" }} />
       </div>
+
+      {maintenance && (
+        <div className="relative z-50 px-4 py-2.5 text-center"
+          style={{ background: "linear-gradient(90deg, rgba(245,158,11,0.95), rgba(249,115,22,0.95))" }}>
+          <div className="max-w-lg mx-auto flex items-center justify-center gap-2">
+            <Icon name="Wrench" size={15} className="text-white flex-shrink-0" />
+            <p className="text-white text-xs font-medium leading-snug">{MAINTENANCE_TEXT}</p>
+          </div>
+        </div>
+      )}
 
       <InstallBanner />
 

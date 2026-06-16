@@ -39,6 +39,17 @@ CORS = {
 def get_conn():
     return psycopg2.connect(os.environ["DATABASE_URL"])
 
+MAINTENANCE_MSG = "Платформа на этапе доработки — покупки и продажи временно недоступны. Можно знакомиться с функциями без оплаты."
+
+def is_maintenance(conn) -> bool:
+    try:
+        with conn.cursor() as cur:
+            cur.execute(f"SELECT value FROM {SCHEMA}.app_settings WHERE key = 'maintenance_mode'")
+            row = cur.fetchone()
+        return bool(row) and row[0] == "true"
+    except Exception:
+        return False
+
 def get_user(conn, token: str):
     if not token:
         return None
@@ -164,6 +175,8 @@ def handler(event: dict, context) -> dict:
         if action == "pay" and method == "POST":
             if not user:
                 return {"statusCode": 401, "headers": CORS, "body": json.dumps({"error": "Не авторизован"})}
+            if is_maintenance(conn):
+                return {"statusCode": 423, "headers": CORS, "body": json.dumps({"error": MAINTENANCE_MSG, "maintenance": True})}
             if not user.get("email_verified"):
                 return {"statusCode": 403, "headers": CORS, "body": json.dumps({"error": "Подтвердите email перед оплатой", "email_not_verified": True})}
             order_id = int(body.get("order_id", 0))

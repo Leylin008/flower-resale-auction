@@ -21,6 +21,18 @@ SITE_URL = "https://flowerflip.ru"
 def get_conn():
     return psycopg2.connect(os.environ["DATABASE_URL"])
 
+def is_maintenance(conn) -> bool:
+    """Режим доработки: денежные операции заблокированы"""
+    try:
+        with conn.cursor() as cur:
+            cur.execute(f"SELECT value FROM {SCHEMA}.app_settings WHERE key = 'maintenance_mode'")
+            row = cur.fetchone()
+        return bool(row) and row[0] == "true"
+    except Exception:
+        return False
+
+MAINTENANCE_MSG = "Платформа на этапе доработки — покупки и продажи временно недоступны. Можно знакомиться с функциями без оплаты."
+
 def send_bid_notification(seller_email: str, seller_name: str, bouquet_title: str, bidder_name: str, amount: float):
     """Отправляет продавцу уведомление о новой ставке"""
     smtp_password = os.environ.get("SMTP_PASSWORD", "")
@@ -283,6 +295,8 @@ def handler(event: dict, context) -> dict:
         if action == "buy_fixed" and method == "POST":
             if not user:
                 return {"statusCode": 401, "headers": CORS, "body": json.dumps({"error": "Не авторизован"})}
+            if is_maintenance(conn):
+                return {"statusCode": 423, "headers": CORS, "body": json.dumps({"error": MAINTENANCE_MSG, "maintenance": True})}
             bouquet_id = int(body.get("bouquet_id", 0))
             with conn.cursor() as cur:
                 cur.execute(
@@ -324,6 +338,8 @@ def handler(event: dict, context) -> dict:
         if action == "reserve" and method == "POST":
             if not user:
                 return {"statusCode": 401, "headers": CORS, "body": json.dumps({"error": "Не авторизован"})}
+            if is_maintenance(conn):
+                return {"statusCode": 423, "headers": CORS, "body": json.dumps({"error": MAINTENANCE_MSG, "maintenance": True})}
             bouquet_id = int(body.get("bouquet_id", 0))
             hours = int(body.get("hours", 24))
             with conn.cursor() as cur:
@@ -382,6 +398,8 @@ def handler(event: dict, context) -> dict:
                 return {"statusCode": 401, "headers": CORS, "body": json.dumps({"error": "Не авторизован"})}
             if not user.get("email_verified"):
                 return {"statusCode": 403, "headers": CORS, "body": json.dumps({"error": "Подтвердите email перед тем как делать ставки", "email_not_verified": True})}
+            if is_maintenance(conn):
+                return {"statusCode": 423, "headers": CORS, "body": json.dumps({"error": MAINTENANCE_MSG, "maintenance": True})}
             bouquet_id = int(body.get("bouquet_id", 0))
             amount = float(body.get("amount", 0))
             with conn.cursor() as cur:

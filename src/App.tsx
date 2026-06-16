@@ -17,6 +17,7 @@ import Terms from "./pages/Terms";
 import Offer from "./pages/Offer";
 import CookieBanner from "./components/CookieBanner";
 import NotFound from "./pages/NotFound";
+import { MaintenanceProvider } from "@/lib/maintenance";
 
 const queryClient = new QueryClient();
 
@@ -45,6 +46,7 @@ const App = () => (
       <TooltipProvider>
         <Toaster />
         <Sonner />
+        <MaintenanceProvider>
         <BrowserRouter>
           <Routes>
             <Route path="/" element={<Index />} />
@@ -62,6 +64,7 @@ const App = () => (
           </Routes>
           <CookieBanner />
         </BrowserRouter>
+        </MaintenanceProvider>
       </TooltipProvider>
     </QueryClientProvider>
   </ErrorBoundary>

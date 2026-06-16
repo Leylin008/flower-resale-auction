@@ -213,6 +213,14 @@ export const adminApi = {
     req(`${URLS.admin}/?action=chats${flaggedOnly ? "&flagged=1" : ""}`),
   chatMessages: (user_a_id: number, user_b_id: number) =>
     req(`${URLS.admin}/?action=chat_messages&user_a_id=${user_a_id}&user_b_id=${user_b_id}`),
+  settings: () => req(`${URLS.admin}/?action=settings`),
+  setMaintenance: (enabled: boolean) =>
+    req(`${URLS.admin}/?action=set_maintenance`, { method: "POST", body: JSON.stringify({ action: "set_maintenance", enabled }) }),
+};
+
+// Публичный флаг режима доработки (без авторизации)
+export const publicApi = {
+  maintenance: () => req(`${URLS.admin}/?action=public_settings`),
 };
 
 // AI (Mistral): консультант по букетам
