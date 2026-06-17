@@ -65,6 +65,30 @@ function isUrgent(endsAt: string) {
   return diff > 0 && diff < 300;
 }
 function formatPrice(n: number | undefined | null) { return (n ?? 0).toLocaleString("ru-RU") + " ₽"; }
+
+// Безопасное копирование: Clipboard API с фолбэком (на случай блокировки в браузере)
+async function safeCopy(text: string): Promise<boolean> {
+  try {
+    if (navigator.clipboard && window.isSecureContext) {
+      await navigator.clipboard.writeText(text);
+      return true;
+    }
+  } catch { /* fallback ниже */ }
+  try {
+    const ta = document.createElement("textarea");
+    ta.value = text;
+    ta.style.position = "fixed";
+    ta.style.left = "-9999px";
+    document.body.appendChild(ta);
+    ta.focus();
+    ta.select();
+    const ok = document.execCommand("copy");
+    document.body.removeChild(ta);
+    return ok;
+  } catch {
+    return false;
+  }
+}
 function timeAgo(d: string) {
   const diff = (Date.now() - new Date(d).getTime()) / 1000;
   if (diff < 60) return "только что";
@@ -2721,7 +2745,7 @@ function ProfileScreen({ user, onLogout, onUpdate, onStartTour }: { user: User |
   const { maintenance } = useMaintenance();
 
   const copyRef = (text: string) => {
-    navigator.clipboard.writeText(text).then(() => { setCopied(true); setTimeout(() => setCopied(false), 2000); });
+    safeCopy(text).then(() => { setCopied(true); setTimeout(() => setCopied(false), 2000); });
   };
   const [reviews, setReviews] = useState<Review[]>([]);
   const [withdrawAmount, setWithdrawAmount] = useState("");
@@ -2859,7 +2883,7 @@ function ProfileScreen({ user, onLogout, onUpdate, onStartTour }: { user: User |
     else setTwoFaMsg(r.data.error || "Неверный код");
   };
   const copyTwoFaSecret = (text: string) => {
-    navigator.clipboard.writeText(text).then(() => { setTwoFaSecretCopied(true); setTimeout(() => setTwoFaSecretCopied(false), 2000); });
+    safeCopy(text).then(() => { setTwoFaSecretCopied(true); setTimeout(() => setTwoFaSecretCopied(false), 2000); });
   };
 
   useEffect(() => {
@@ -3652,11 +3676,13 @@ function ProfileScreen({ user, onLogout, onUpdate, onStartTour }: { user: User |
                 <Icon name="Copy" size={14} />
                 Копировать ссылку
               </button>
-              <button onClick={() => {
+              <button onClick={async () => {
                 const shareUrl = `https://flowerflip.ru/?ref=${user.ref_code}`;
                 const text = `🌸 FlowerFlip — аукцион живых букетов!\nПокупай свежие цветы дешевле рынка.\n${shareUrl}`;
-                if (navigator.share) navigator.share({ title: "FlowerFlip — аукцион живых букетов", text, url: shareUrl });
-                else copyRef(shareUrl);
+                try {
+                  if (navigator.share) await navigator.share({ title: "FlowerFlip — аукцион живых букетов", text, url: shareUrl });
+                  else copyRef(shareUrl);
+                } catch { copyRef(shareUrl); }
               }}
                 className="flex-1 btn-gradient rounded-xl py-2.5 text-sm font-medium flex items-center justify-center gap-2">
                 <Icon name="Share2" size={14} />

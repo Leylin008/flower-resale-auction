@@ -4,6 +4,13 @@ Allow: /
 User-agent: Bingbot
 Allow: /
 
+User-agent: Yandex
+Allow: /
+Disallow: /pitch
+Disallow: /investor
+Disallow: /negotiation
+Disallow: /anime
+
 User-agent: Twitterbot
 Allow: /
 
@@ -12,3 +19,10 @@ Allow: /
 
 User-agent: *
 Allow: /
+Disallow: /pitch
+Disallow: /investor
+Disallow: /negotiation
+Disallow: /anime
+
+Host: https://flowerflip.ru
+Sitemap: https://flowerflip.ru/sitemap.xml
