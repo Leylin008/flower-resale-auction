@@ -1,0 +1,1 @@
+{"tests": [{"name": "Bot gets OG html", "method": "GET", "path": "/?code=TEST123", "headers": {"User-Agent": "vkShare; +http://vk.com/dev/Share"}, "expectedStatus": 200, "bodyMatcher": "partial"}]}
