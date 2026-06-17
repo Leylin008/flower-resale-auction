@@ -1,0 +1,1 @@
+ALTER TABLE t_p84229990_flower_resale_auctio.notifications ADD COLUMN IF NOT EXISTS data TEXT;

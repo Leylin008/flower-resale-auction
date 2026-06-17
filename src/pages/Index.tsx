@@ -1732,6 +1732,11 @@ function DealsScreen({ user, onPaySuccess }: { user: User | null; onPaySuccess?:
   const [dealChatSending, setDealChatSending] = useState(false);
   const [dealChatErr, setDealChatErr] = useState("");
   const dealChatBottomRef = useRef<HTMLDivElement>(null);
+  const [sales, setSales] = useState<{ id: number; title: string; current_price: number; status: string; bids_count: number }[]>([]);
+  const [cancelConfirm, setCancelConfirm] = useState<number | null>(null);
+  const [cancelMsg, setCancelMsg] = useState("");
+  const [promoteMsg, setPromoteMsg] = useState("");
+  const [promoteBusy, setPromoteBusy] = useState(false);
 
   const load = async () => {
     if (!user) { setLoading(false); return; }
@@ -1740,6 +1745,26 @@ function DealsScreen({ user, onPaySuccess }: { user: User | null; onPaySuccess?:
     setLoading(false);
   };
   useEffect(() => { load(); }, [user]);
+
+  const loadSales = useCallback(() => {
+    profileApi.mySales().then(r => { if (r.ok) setSales(r.data.sales); });
+  }, []);
+  useEffect(() => { loadSales(); }, [loadSales]);
+
+  const cancelSale = async (id: number) => {
+    const r = await bouquetsApi.cancel(id);
+    if (r.ok) { setCancelConfirm(null); setCancelMsg(""); loadSales(); }
+    else { setCancelMsg(r.data.error || "Ошибка"); }
+  };
+
+  const promote = async (kind: string, bouquetId: number, cost: number, label: string) => {
+    if (!confirm(`${label} за ${cost} 🌸? Баллы спишутся с вашего баланса лепестков.`)) return;
+    setPromoteBusy(true); setPromoteMsg("");
+    const r = await coinsApi.spend(kind, bouquetId);
+    setPromoteBusy(false);
+    if (r.ok) { setPromoteMsg(`Готово! Осталось ${r.data.coins} 🌸`); loadSales(); onPaySuccess?.(); }
+    else { setPromoteMsg(r.data.error || "Недостаточно баллов"); }
+  };
 
   const loadDealChat = useCallback(async (deal: Deal) => {
     if (!user) return;
@@ -2175,6 +2200,57 @@ function DealsScreen({ user, onPaySuccess }: { user: User | null; onPaySuccess?:
             </div>
           ))}
         </div>
+      </div>
+
+      <div className="glass rounded-2xl p-4 mb-5">
+        <p className="text-white/50 text-sm mb-3 font-medium">Мои аукционы</p>
+        {cancelMsg && <p className="text-red-400 text-xs mb-2">{cancelMsg}</p>}
+        {promoteMsg && <p className="text-xs mb-2" style={{ color: promoteMsg.includes("Готово") ? "#4ade80" : "#f87171" }}>{promoteMsg}</p>}
+        {sales.length === 0 ? (
+          <p className="text-white/30 text-sm">Вы ещё не выставляли букеты</p>
+        ) : (
+          <div className="space-y-2">
+            {sales.map(s => (
+              <div key={s.id} className="rounded-xl p-3" style={{ background: "rgba(255,255,255,0.04)" }}>
+                <div className="flex items-center gap-3">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-white/80 text-sm truncate">{s.title}</p>
+                    <div className="flex items-center gap-2 mt-0.5">
+                      <span className="gradient-text text-sm font-semibold">{formatPrice(s.current_price)}</span>
+                      <span className="text-white/30 text-xs">{s.bids_count} ст.</span>
+                      <span className="text-xs px-1.5 py-0.5 rounded-full" style={{ background: s.status === "active" ? "rgba(34,197,94,0.15)" : "rgba(255,255,255,0.07)", color: s.status === "active" ? "#4ade80" : "rgba(255,255,255,0.3)" }}>
+                        {s.status === "active" ? "активен" : s.status === "won" ? "продан" : s.status === "expired" ? "истёк" : s.status}
+                      </span>
+                    </div>
+                  </div>
+                  {s.status === "active" && s.bids_count === 0 && (
+                    cancelConfirm === s.id ? (
+                      <div className="flex items-center gap-1.5 flex-shrink-0">
+                        <button onClick={() => cancelSale(s.id)} className="px-2.5 py-1.5 rounded-lg text-xs font-medium text-white" style={{ background: "rgba(239,68,68,0.8)" }}>Да, снять</button>
+                        <button onClick={() => { setCancelConfirm(null); setCancelMsg(""); }} className="px-2.5 py-1.5 rounded-lg text-xs text-white/50 glass">Нет</button>
+                      </div>
+                    ) : (
+                      <button onClick={() => { setCancelConfirm(s.id); setCancelMsg(""); }} className="flex-shrink-0 glass p-2 rounded-xl hover:text-red-400 transition-colors text-white/30" title="Снять с аукциона">
+                        <Icon name="Trash2" size={15} />
+                      </button>
+                    )
+                  )}
+                  {s.status === "active" && s.bids_count > 0 && (
+                    <span className="flex-shrink-0 text-white/20 text-xs" title="Есть ставки — нельзя снять"><Icon name="Lock" size={13} /></span>
+                  )}
+                </div>
+                {s.status === "active" && (
+                  <div className="flex items-center gap-1.5 mt-2.5 flex-wrap">
+                    <span className="text-white/30 text-[11px] mr-0.5">Продвижение 🌸:</span>
+                    <button disabled={promoteBusy} onClick={() => promote("boost", s.id, 100, "Поднять в топ")} className="glass rounded-lg px-2.5 py-1.5 text-xs font-medium text-white/70 flex items-center gap-1 disabled:opacity-50"><Icon name="ArrowUp" size={12} style={{ color: "#ec4899" }} /> В топ</button>
+                    <button disabled={promoteBusy} onClick={() => promote("highlight", s.id, 150, "Выделить цветом")} className="glass rounded-lg px-2.5 py-1.5 text-xs font-medium text-white/70 flex items-center gap-1 disabled:opacity-50"><Icon name="Sparkles" size={12} style={{ color: "#a855f7" }} /> Выделить</button>
+                    <button disabled={promoteBusy} onClick={() => promote("extend", s.id, 80, "Продлить аукцион")} className="glass rounded-lg px-2.5 py-1.5 text-xs font-medium text-white/70 flex items-center gap-1 disabled:opacity-50"><Icon name="Clock" size={12} style={{ color: "#4ade80" }} /> Продлить</button>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {loading ? (
@@ -2646,7 +2722,6 @@ function ProfileScreen({ user, onLogout, onUpdate, onStartTour }: { user: User |
     navigator.clipboard.writeText(text).then(() => { setCopied(true); setTimeout(() => setCopied(false), 2000); });
   };
   const [reviews, setReviews] = useState<Review[]>([]);
-  const [sales, setSales] = useState<{ id: number; title: string; current_price: number; status: string; bids_count: number }[]>([]);
   const [withdrawAmount, setWithdrawAmount] = useState("");
   const [withdrawMsg, setWithdrawMsg] = useState("");
   const [payoutMethod, setPayoutMethod] = useState(user?.payout_method || "card");
@@ -2674,8 +2749,6 @@ function ProfileScreen({ user, onLogout, onUpdate, onStartTour }: { user: User |
     if (res === "ios") setShowIosGuide(true);
   };
 
-  const [cancelConfirm, setCancelConfirm] = useState<number | null>(null);
-  const [cancelMsg, setCancelMsg] = useState("");
   const [emailInput, setEmailInput] = useState(user?.email || "");
 
   // Магазин
@@ -2719,33 +2792,6 @@ function ProfileScreen({ user, onLogout, onUpdate, onStartTour }: { user: User |
     profileApi.withdrawals().then(r => { if (r.ok) setWithdrawals(r.data.withdrawals); });
   }, []);
 
-  const loadSales = useCallback(() => {
-    profileApi.mySales().then(r => { if (r.ok) setSales(r.data.sales); });
-  }, []);
-
-  const cancelSale = async (id: number) => {
-    const r = await bouquetsApi.cancel(id);
-    if (r.ok) { setCancelConfirm(null); setCancelMsg(""); loadSales(); }
-    else { setCancelMsg(r.data.error || "Ошибка"); }
-  };
-
-  // Продвижение букетов за лепестки
-  const [promoteMsg, setPromoteMsg] = useState("");
-  const [promoteBusy, setPromoteBusy] = useState(false);
-  const promote = async (kind: string, bouquetId: number, cost: number, label: string) => {
-    if (!confirm(`${label} за ${cost} 🌸? Баллы спишутся с вашего баланса лепестков.`)) return;
-    setPromoteBusy(true); setPromoteMsg("");
-    const r = await coinsApi.spend(kind, bouquetId);
-    setPromoteBusy(false);
-    if (r.ok) {
-      setPromoteMsg(`Готово! Осталось ${r.data.coins} 🌸`);
-      loadSales();
-      onUpdate?.();
-    } else {
-      setPromoteMsg(r.data.error || "Недостаточно баллов");
-    }
-  };
-
   const saveSettings = async () => {
     setSettingsSaving(true); setSettingsMsg("");
     const updates: Record<string, string> = {};
@@ -2781,7 +2827,7 @@ function ProfileScreen({ user, onLogout, onUpdate, onStartTour }: { user: User |
   useEffect(() => {
     if (!user) return;
     if (tab === "reviews") profileApi.reviews().then(r => { if (r.ok) setReviews(r.data.reviews); });
-    if (tab === "about") { loadSales(); loadWithdrawals(); }
+    if (tab === "about") { loadWithdrawals(); }
     if (tab === "shop") {
       shopsApi.myStatus().then(r => {
         if (r.ok) {
@@ -2797,7 +2843,7 @@ function ProfileScreen({ user, onLogout, onUpdate, onStartTour }: { user: User |
         if (r.ok) setShopLocations(r.data.locations || []);
       });
     }
-  }, [tab, user, loadSales, loadWithdrawals]);
+  }, [tab, user, loadWithdrawals]);
 
   if (!user) return (
     <div className="text-center py-20">
@@ -2970,81 +3016,6 @@ function ProfileScreen({ user, onLogout, onUpdate, onStartTour }: { user: User |
                     </div>
                   ))}
                 </div>
-              </div>
-            )}
-          </div>
-          <div className="glass rounded-2xl p-4">
-            <p className="text-white/50 text-sm mb-3 font-medium">Мои аукционы</p>
-            {cancelMsg && <p className="text-red-400 text-xs mb-2">{cancelMsg}</p>}
-            {promoteMsg && <p className="text-xs mb-2" style={{ color: promoteMsg.includes("Готово") ? "#4ade80" : "#f87171" }}>{promoteMsg}</p>}
-            {sales.length === 0 ? (
-              <p className="text-white/30 text-sm">Вы ещё не выставляли букеты</p>
-            ) : (
-              <div className="space-y-2">
-                {sales.map(s => (
-                  <div key={s.id} className="rounded-xl p-3"
-                    style={{ background: "rgba(255,255,255,0.04)" }}>
-                    <div className="flex items-center gap-3">
-                      <div className="flex-1 min-w-0">
-                        <p className="text-white/80 text-sm truncate">{s.title}</p>
-                        <div className="flex items-center gap-2 mt-0.5">
-                          <span className="gradient-text text-sm font-semibold">{formatPrice(s.current_price)}</span>
-                          <span className="text-white/30 text-xs">{s.bids_count} ст.</span>
-                          <span className="text-xs px-1.5 py-0.5 rounded-full"
-                            style={{
-                              background: s.status === "active" ? "rgba(34,197,94,0.15)" : "rgba(255,255,255,0.07)",
-                              color: s.status === "active" ? "#4ade80" : "rgba(255,255,255,0.3)"
-                            }}>
-                            {s.status === "active" ? "активен" : s.status === "won" ? "продан" : s.status === "expired" ? "истёк" : s.status}
-                          </span>
-                        </div>
-                      </div>
-                      {s.status === "active" && s.bids_count === 0 && (
-                        cancelConfirm === s.id ? (
-                          <div className="flex items-center gap-1.5 flex-shrink-0">
-                            <button onClick={() => cancelSale(s.id)}
-                              className="px-2.5 py-1.5 rounded-lg text-xs font-medium text-white"
-                              style={{ background: "rgba(239,68,68,0.8)" }}>
-                              Да, снять
-                            </button>
-                            <button onClick={() => { setCancelConfirm(null); setCancelMsg(""); }}
-                              className="px-2.5 py-1.5 rounded-lg text-xs text-white/50 glass">
-                              Нет
-                            </button>
-                          </div>
-                        ) : (
-                          <button onClick={() => { setCancelConfirm(s.id); setCancelMsg(""); }}
-                            className="flex-shrink-0 glass p-2 rounded-xl hover:text-red-400 transition-colors text-white/30"
-                            title="Снять с аукциона">
-                            <Icon name="Trash2" size={15} />
-                          </button>
-                        )
-                      )}
-                      {s.status === "active" && s.bids_count > 0 && (
-                        <span className="flex-shrink-0 text-white/20 text-xs" title="Есть ставки — нельзя снять">
-                          <Icon name="Lock" size={13} />
-                        </span>
-                      )}
-                    </div>
-                    {s.status === "active" && (
-                      <div className="flex items-center gap-1.5 mt-2.5 flex-wrap">
-                        <span className="text-white/30 text-[11px] mr-0.5">Продвижение 🌸:</span>
-                        <button disabled={promoteBusy} onClick={() => promote("boost", s.id, 100, "Поднять в топ")}
-                          className="glass rounded-lg px-2.5 py-1.5 text-xs font-medium text-white/70 flex items-center gap-1 disabled:opacity-50">
-                          <Icon name="ArrowUp" size={12} style={{ color: "#ec4899" }} /> В топ
-                        </button>
-                        <button disabled={promoteBusy} onClick={() => promote("highlight", s.id, 150, "Выделить цветом")}
-                          className="glass rounded-lg px-2.5 py-1.5 text-xs font-medium text-white/70 flex items-center gap-1 disabled:opacity-50">
-                          <Icon name="Sparkles" size={12} style={{ color: "#a855f7" }} /> Выделить
-                        </button>
-                        <button disabled={promoteBusy} onClick={() => promote("extend", s.id, 80, "Продлить аукцион")}
-                          className="glass rounded-lg px-2.5 py-1.5 text-xs font-medium text-white/70 flex items-center gap-1 disabled:opacity-50">
-                          <Icon name="Clock" size={12} style={{ color: "#4ade80" }} /> Продлить
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                ))}
               </div>
             )}
           </div>
