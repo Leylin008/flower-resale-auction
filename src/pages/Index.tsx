@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import Icon from "@/components/ui/icon";
-import { authApi, bouquetsApi, profileApi, uploadApi, escrowApi, oauthApi, adminApi, paymentApi, shopsApi, bannersApi, notificationsApi } from "@/lib/api";
+import { authApi, bouquetsApi, profileApi, uploadApi, escrowApi, oauthApi, adminApi, paymentApi, shopsApi, bannersApi, notificationsApi, coinsApi, articlesApi, shopParserApi } from "@/lib/api";
 import AdBanners from "@/components/AdBanners";
 import AiConsultant from "@/components/AiConsultant";
 import NotificationBell from "@/components/NotificationBell";
@@ -24,6 +24,7 @@ interface User {
   is_admin?: boolean; payout_method?: string; payout_details?: string;
   email?: string; email_verified?: boolean;
   ref_code?: string; ref_earnings?: number;
+  coins?: number;
 }
 interface Deal {
   id: number; amount: number; commission: number; escrow_status: string;
@@ -2460,6 +2461,120 @@ function ShopBannerRequestForm({ user, isShopSubscriber, bannerPrice = 990 }: { 
   );
 }
 
+/* ─── COINS MODAL «Лепестки» ─────────────────────────────── */
+interface CoinHistoryItem { amount: number; balance_after: number; type: string; reason: string; created_at: string; }
+function CoinsModal({ user, onClose, onUpdated }: { user: User | null; onClose: () => void; onUpdated: () => void }) {
+  const [coins, setCoins] = useState<number>(user?.coins ?? 0);
+  const [loading, setLoading] = useState(false);
+  const [message, setMessage] = useState("");
+  const [showHistory, setShowHistory] = useState(false);
+  const [history, setHistory] = useState<CoinHistoryItem[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
+
+  const refreshBalance = useCallback(() => {
+    coinsApi.balance().then(r => { if (r.ok) setCoins(r.data.coins); });
+  }, []);
+
+  useEffect(() => { refreshBalance(); }, [refreshBalance]);
+
+  const buy = async (amount: number) => {
+    setLoading(true); setMessage("");
+    const r = await coinsApi.purchase(amount);
+    setLoading(false);
+    if (r.ok) {
+      setCoins(r.data.coins);
+      setMessage(`Начислено ${amount} 🌸`);
+      onUpdated();
+    } else {
+      setMessage(r.data.error || "Не удалось купить баллы");
+    }
+  };
+
+  const toggleHistory = async () => {
+    const next = !showHistory;
+    setShowHistory(next);
+    if (next && history.length === 0) {
+      setHistoryLoading(true);
+      const r = await coinsApi.history();
+      setHistoryLoading(false);
+      if (r.ok) setHistory(r.data.items);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4"
+      style={{ background: "rgba(0,0,0,0.75)", backdropFilter: "blur(8px)" }}
+      onClick={onClose}>
+      <div className="glass-strong rounded-2xl p-6 w-full max-w-sm animate-fade-in-up"
+        onClick={e => e.stopPropagation()}>
+        <div className="flex items-start justify-between mb-3">
+          <div className="flex items-center gap-2">
+            <Icon name="Flower2" size={20} style={{ color: "#ec4899" }} />
+            <h3 className="font-oswald text-xl font-bold text-white">Лепестки 🌸</h3>
+          </div>
+          <button onClick={onClose} className="text-white/40 hover:text-white transition-colors">
+            <Icon name="X" size={20} />
+          </button>
+        </div>
+
+        <div className="text-center mb-4">
+          <p className="font-oswald text-4xl font-bold gradient-text">🌸 {coins}</p>
+          <p className="text-white/40 text-xs mt-1">Ваш баланс баллов</p>
+        </div>
+
+        <p className="text-white/50 text-sm leading-relaxed mb-4">
+          Внутренние баллы FlowerFlip. Тратьте на продвижение букетов: поднятие в топ, выделение цветом, продление аукциона.
+        </p>
+
+        <p className="text-white/50 text-xs font-medium mb-2">Купить баллы (1 ₽ = 1 балл)</p>
+        <div className="grid grid-cols-2 gap-2 mb-3">
+          {[50, 100, 250, 500].map(amount => (
+            <button key={amount} disabled={loading} onClick={() => buy(amount)}
+              className="rounded-xl py-2.5 text-sm font-medium text-white flex items-center justify-center gap-1.5 disabled:opacity-50"
+              style={{ background: "var(--grad-main)" }}>
+              <Icon name="Plus" size={14} /> {amount} 🌸
+            </button>
+          ))}
+        </div>
+        <p className="text-white/30 text-[11px] mb-3">Списывается с рублёвого баланса. Минимум 50 баллов.</p>
+
+        {message && (
+          <p className="text-sm text-center mb-3"
+            style={{ color: message.includes("Начислено") ? "#4ade80" : "#f87171" }}>
+            {message}
+          </p>
+        )}
+
+        <button onClick={toggleHistory}
+          className="w-full glass rounded-xl py-2.5 text-sm font-medium text-white/60 flex items-center justify-center gap-2">
+          <Icon name="Clock" size={14} /> {showHistory ? "Скрыть историю" : "История"}
+        </button>
+
+        {showHistory && (
+          <div className="mt-3 space-y-1.5 max-h-52 overflow-y-auto">
+            {historyLoading ? (
+              <p className="text-white/30 text-xs text-center py-3">Загрузка...</p>
+            ) : history.length === 0 ? (
+              <p className="text-white/30 text-xs text-center py-3">Операций пока нет</p>
+            ) : history.map((h, i) => (
+              <div key={i} className="glass rounded-lg px-3 py-2 flex items-center justify-between">
+                <div className="min-w-0">
+                  <p className="text-white/70 text-xs truncate">{h.reason}</p>
+                  <p className="text-white/30 text-[10px]">{new Date(h.created_at).toLocaleString("ru-RU")}</p>
+                </div>
+                <span className="text-sm font-semibold flex-shrink-0 ml-2"
+                  style={{ color: h.amount >= 0 ? "#4ade80" : "#f87171" }}>
+                  {h.amount >= 0 ? "+" : ""}{h.amount} 🌸
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 /* ─── PROFILE SCREEN ─────────────────────────────────────── */
 function ProfileScreen({ user, onLogout, onUpdate, onStartTour }: { user: User | null; onLogout: () => void; onUpdate?: () => void; onStartTour?: () => void }) {
   const [tab, setTab] = useState<"about" | "reviews" | "referral" | "settings" | "shop">("about");
@@ -2551,6 +2666,23 @@ function ProfileScreen({ user, onLogout, onUpdate, onStartTour }: { user: User |
     const r = await bouquetsApi.cancel(id);
     if (r.ok) { setCancelConfirm(null); setCancelMsg(""); loadSales(); }
     else { setCancelMsg(r.data.error || "Ошибка"); }
+  };
+
+  // Продвижение букетов за лепестки
+  const [promoteMsg, setPromoteMsg] = useState("");
+  const [promoteBusy, setPromoteBusy] = useState(false);
+  const promote = async (kind: string, bouquetId: number, cost: number, label: string) => {
+    if (!confirm(`${label} за ${cost} 🌸? Баллы спишутся с вашего баланса лепестков.`)) return;
+    setPromoteBusy(true); setPromoteMsg("");
+    const r = await coinsApi.spend(kind, bouquetId);
+    setPromoteBusy(false);
+    if (r.ok) {
+      setPromoteMsg(`Готово! Осталось ${r.data.coins} 🌸`);
+      loadSales();
+      onUpdate?.();
+    } else {
+      setPromoteMsg(r.data.error || "Недостаточно баллов");
+    }
   };
 
   const saveSettings = async () => {
@@ -2783,52 +2915,72 @@ function ProfileScreen({ user, onLogout, onUpdate, onStartTour }: { user: User |
           <div className="glass rounded-2xl p-4">
             <p className="text-white/50 text-sm mb-3 font-medium">Мои аукционы</p>
             {cancelMsg && <p className="text-red-400 text-xs mb-2">{cancelMsg}</p>}
+            {promoteMsg && <p className="text-xs mb-2" style={{ color: promoteMsg.includes("Готово") ? "#4ade80" : "#f87171" }}>{promoteMsg}</p>}
             {sales.length === 0 ? (
               <p className="text-white/30 text-sm">Вы ещё не выставляли букеты</p>
             ) : (
               <div className="space-y-2">
                 {sales.map(s => (
-                  <div key={s.id} className="rounded-xl p-3 flex items-center gap-3"
+                  <div key={s.id} className="rounded-xl p-3"
                     style={{ background: "rgba(255,255,255,0.04)" }}>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-white/80 text-sm truncate">{s.title}</p>
-                      <div className="flex items-center gap-2 mt-0.5">
-                        <span className="gradient-text text-sm font-semibold">{formatPrice(s.current_price)}</span>
-                        <span className="text-white/30 text-xs">{s.bids_count} ст.</span>
-                        <span className="text-xs px-1.5 py-0.5 rounded-full"
-                          style={{
-                            background: s.status === "active" ? "rgba(34,197,94,0.15)" : "rgba(255,255,255,0.07)",
-                            color: s.status === "active" ? "#4ade80" : "rgba(255,255,255,0.3)"
-                          }}>
-                          {s.status === "active" ? "активен" : s.status === "won" ? "продан" : s.status === "expired" ? "истёк" : s.status}
-                        </span>
-                      </div>
-                    </div>
-                    {s.status === "active" && s.bids_count === 0 && (
-                      cancelConfirm === s.id ? (
-                        <div className="flex items-center gap-1.5 flex-shrink-0">
-                          <button onClick={() => cancelSale(s.id)}
-                            className="px-2.5 py-1.5 rounded-lg text-xs font-medium text-white"
-                            style={{ background: "rgba(239,68,68,0.8)" }}>
-                            Да, снять
-                          </button>
-                          <button onClick={() => { setCancelConfirm(null); setCancelMsg(""); }}
-                            className="px-2.5 py-1.5 rounded-lg text-xs text-white/50 glass">
-                            Нет
-                          </button>
+                    <div className="flex items-center gap-3">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-white/80 text-sm truncate">{s.title}</p>
+                        <div className="flex items-center gap-2 mt-0.5">
+                          <span className="gradient-text text-sm font-semibold">{formatPrice(s.current_price)}</span>
+                          <span className="text-white/30 text-xs">{s.bids_count} ст.</span>
+                          <span className="text-xs px-1.5 py-0.5 rounded-full"
+                            style={{
+                              background: s.status === "active" ? "rgba(34,197,94,0.15)" : "rgba(255,255,255,0.07)",
+                              color: s.status === "active" ? "#4ade80" : "rgba(255,255,255,0.3)"
+                            }}>
+                            {s.status === "active" ? "активен" : s.status === "won" ? "продан" : s.status === "expired" ? "истёк" : s.status}
+                          </span>
                         </div>
-                      ) : (
-                        <button onClick={() => { setCancelConfirm(s.id); setCancelMsg(""); }}
-                          className="flex-shrink-0 glass p-2 rounded-xl hover:text-red-400 transition-colors text-white/30"
-                          title="Снять с аукциона">
-                          <Icon name="Trash2" size={15} />
+                      </div>
+                      {s.status === "active" && s.bids_count === 0 && (
+                        cancelConfirm === s.id ? (
+                          <div className="flex items-center gap-1.5 flex-shrink-0">
+                            <button onClick={() => cancelSale(s.id)}
+                              className="px-2.5 py-1.5 rounded-lg text-xs font-medium text-white"
+                              style={{ background: "rgba(239,68,68,0.8)" }}>
+                              Да, снять
+                            </button>
+                            <button onClick={() => { setCancelConfirm(null); setCancelMsg(""); }}
+                              className="px-2.5 py-1.5 rounded-lg text-xs text-white/50 glass">
+                              Нет
+                            </button>
+                          </div>
+                        ) : (
+                          <button onClick={() => { setCancelConfirm(s.id); setCancelMsg(""); }}
+                            className="flex-shrink-0 glass p-2 rounded-xl hover:text-red-400 transition-colors text-white/30"
+                            title="Снять с аукциона">
+                            <Icon name="Trash2" size={15} />
+                          </button>
+                        )
+                      )}
+                      {s.status === "active" && s.bids_count > 0 && (
+                        <span className="flex-shrink-0 text-white/20 text-xs" title="Есть ставки — нельзя снять">
+                          <Icon name="Lock" size={13} />
+                        </span>
+                      )}
+                    </div>
+                    {s.status === "active" && (
+                      <div className="flex items-center gap-1.5 mt-2.5 flex-wrap">
+                        <span className="text-white/30 text-[11px] mr-0.5">Продвижение 🌸:</span>
+                        <button disabled={promoteBusy} onClick={() => promote("boost", s.id, 100, "Поднять в топ")}
+                          className="glass rounded-lg px-2.5 py-1.5 text-xs font-medium text-white/70 flex items-center gap-1 disabled:opacity-50">
+                          <Icon name="ArrowUp" size={12} style={{ color: "#ec4899" }} /> В топ
                         </button>
-                      )
-                    )}
-                    {s.status === "active" && s.bids_count > 0 && (
-                      <span className="flex-shrink-0 text-white/20 text-xs" title="Есть ставки — нельзя снять">
-                        <Icon name="Lock" size={13} />
-                      </span>
+                        <button disabled={promoteBusy} onClick={() => promote("highlight", s.id, 150, "Выделить цветом")}
+                          className="glass rounded-lg px-2.5 py-1.5 text-xs font-medium text-white/70 flex items-center gap-1 disabled:opacity-50">
+                          <Icon name="Sparkles" size={12} style={{ color: "#a855f7" }} /> Выделить
+                        </button>
+                        <button disabled={promoteBusy} onClick={() => promote("extend", s.id, 80, "Продлить аукцион")}
+                          className="glass rounded-lg px-2.5 py-1.5 text-xs font-medium text-white/70 flex items-center gap-1 disabled:opacity-50">
+                          <Icon name="Clock" size={12} style={{ color: "#4ade80" }} /> Продлить
+                        </button>
+                      </div>
                     )}
                   </div>
                 ))}
@@ -2915,6 +3067,18 @@ function ProfileScreen({ user, onLogout, onUpdate, onStartTour }: { user: User |
                   <p className="text-white/30 text-xs">Напишите нам по любому вопросу</p>
                 </div>
                 <Icon name="ExternalLink" size={13} className="text-white/20 flex-shrink-0" />
+              </a>
+              <a href="/articles"
+                className="flex items-center gap-3 glass rounded-xl px-4 py-3 hover:bg-white/5 transition-colors group">
+                <div className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0"
+                  style={{ background: "rgba(255,61,139,0.15)" }}>
+                  <Icon name="BookOpen" size={15} style={{ color: "var(--neon-pink)" }} />
+                </div>
+                <div className="flex-1 min-w-0 text-left">
+                  <p className="text-white/70 text-sm group-hover:text-white transition-colors">Статьи о платформе</p>
+                  <p className="text-white/30 text-xs">Как работает аукцион, эскроу, баллы и рефералы</p>
+                </div>
+                <Icon name="ChevronRight" size={13} className="text-white/20 flex-shrink-0" />
               </a>
               <div className="flex items-center gap-3 px-4 py-2">
                 <Icon name="Shield" size={13} className="text-white/20 flex-shrink-0" />
@@ -3334,6 +3498,19 @@ function ProfileScreen({ user, onLogout, onUpdate, onStartTour }: { user: User |
             </div>
           </div>
 
+          {/* Общий годовой пул */}
+          <div className="glass rounded-2xl p-4" style={{ border: "1px solid rgba(168,85,247,0.2)" }}>
+            <p className="text-white/50 text-sm font-medium mb-2 flex items-center gap-2">
+              <Icon name="Sparkles" size={14} style={{ color: "#a855f7" }} />
+              Общий годовой пул 🌸
+            </p>
+            <p className="text-white/60 text-sm leading-relaxed">
+              С каждой покупки приглашённого друга вы получаете <span style={{ color: "#ec4899" }}>4,5%</span> сразу на баланс,
+              а <span style={{ color: "#a855f7" }}>0,5%</span> идёт в общий пул. В конце года пул делится между всеми,
+              кто привёл хотя бы одного пользователя.
+            </p>
+          </div>
+
           {/* Как работает */}
           <div className="glass rounded-2xl p-4">
             <p className="text-white/50 text-sm font-medium mb-3">Как работает</p>
@@ -3482,7 +3659,7 @@ interface AdminBanner {
 }
 
 function AdminScreen({ user }: { user: User | null }) {
-  const [adminTab, setAdminTab] = useState<"withdrawals" | "banners" | "shops" | "chats">("withdrawals");
+  const [adminTab, setAdminTab] = useState<"withdrawals" | "banners" | "shops" | "chats" | "users" | "parser" | "articles">("withdrawals");
   const { maintenance, setMaintenance, refresh: refreshMaintenance } = useMaintenance();
   const [maintBusy, setMaintBusy] = useState(false);
 
@@ -3517,6 +3694,41 @@ function AdminScreen({ user }: { user: User | null }) {
   const [openChat, setOpenChat] = useState<{ a: number; b: number; names: string } | null>(null);
   const [chatMsgs, setChatMsgs] = useState<{ id: number; sender_id: number; text: string; created_at: string; is_flagged: boolean; moderation_status: string; moderation_reason?: string; bouquet_title?: string; deal_id?: number }[]>([]);
 
+  // Пользователи (управление)
+  type AdminUser = { id: number; name: string; email?: string; phone?: string; city?: string; balance: number; coins: number; is_blocked: boolean; is_admin: boolean; created_at: string; sales_count: number; purchases_count: number; ref_code?: string };
+  const [usersList, setUsersList] = useState<AdminUser[]>([]);
+  const [userSearch, setUserSearch] = useState("");
+  type AdminUserDetail = {
+    profile: { id: number; name: string; email?: string; phone?: string; city?: string; balance: number; coins: number; is_blocked: boolean; block_reason?: string; ref_earnings?: number; ref_code?: string; created_at?: string };
+    subscription?: { status?: string; expires_at?: string; banner_addon?: boolean; shop_name?: string } | null;
+    bouquets: { id: number; title: string; current_price?: number; status?: string }[];
+    deals: { id: number; amount: number; status: string; role: string; created_at: string }[];
+    referrals: { id: number; name: string; created_at: string }[];
+    chats: { other_id: number; other_name: string }[];
+  };
+  const [userDetail, setUserDetail] = useState<AdminUserDetail | null>(null);
+  const [userBusy, setUserBusy] = useState(false);
+
+  // Парсер магазинов
+  type ParsedShop = { id: number; name: string; city: string; phone?: string; email?: string; website?: string; instagram?: string; address?: string; contacted: boolean; created_at: string };
+  const [parserShops, setParserShops] = useState<ParsedShop[]>([]);
+  const [parserCity, setParserCity] = useState("");
+  const [parserKind, setParserKind] = useState("цветочные магазины");
+  const [parserCount, setParserCount] = useState(15);
+  const [parserBusy, setParserBusy] = useState(false);
+  const [parserMsg, setParserMsg] = useState("");
+
+  // Статьи (генератор + список)
+  type AdminArticle = { id: number; slug: string; title: string; excerpt?: string; cover_url?: string; category?: string; is_published: boolean; views: number; created_at: string };
+  const [articlesList, setArticlesList] = useState<AdminArticle[]>([]);
+  const [artTopic, setArtTopic] = useState("");
+  const [artCategory, setArtCategory] = useState("Цветы и романтика");
+  const [artBusy, setArtBusy] = useState(false);
+  const [artMsg, setArtMsg] = useState("");
+  const [artDraft, setArtDraft] = useState<{ id?: number; title: string; excerpt: string; body: string; cover_url: string; category: string; is_published: boolean } | null>(null);
+  const [artCoverUploading, setArtCoverUploading] = useState(false);
+  const artCoverRef = useRef<HTMLInputElement>(null);
+
   const load = useCallback(() => {
     adminApi.stats().then(r => { if (r.ok) setStats(r.data); });
     adminApi.withdrawals(filter || undefined).then(r => { if (r.ok) setItems(r.data.withdrawals); });
@@ -3528,6 +3740,9 @@ function AdminScreen({ user }: { user: User | null }) {
     if (adminTab === "banners") bannersApi.adminList().then(r => { if (r.ok) setBanners(r.data.banners); });
     if (adminTab === "shops") adminApi.subscriptions().then(r => { if (r.ok) setSubscriptions(r.data.subscriptions); });
     if (adminTab === "chats") adminApi.chats(chatsFlaggedOnly).then(r => { if (r.ok) setChats(r.data.chats); });
+    if (adminTab === "users") adminApi.users().then(r => { if (r.ok) setUsersList(r.data.users); });
+    if (adminTab === "parser") shopParserApi.list().then(r => { if (r.ok) setParserShops(r.data.shops); });
+    if (adminTab === "articles") articlesApi.adminList().then(r => { if (r.ok) setArticlesList(r.data.articles); });
   }, [adminTab, chatsFlaggedOnly]);
 
   const loadChat = async (a: number, b: number, names: string) => {
@@ -3535,6 +3750,110 @@ function AdminScreen({ user }: { user: User | null }) {
     setChatMsgs([]);
     const r = await adminApi.chatMessages(a, b);
     if (r.ok) setChatMsgs(r.data.messages);
+  };
+
+  // ── Пользователи ──
+  const reloadUsers = (q?: string) => adminApi.users(q).then(r => { if (r.ok) setUsersList(r.data.users); });
+  const searchUsers = () => reloadUsers(userSearch.trim() || undefined);
+  const openUserDetail = async (id: number) => {
+    setUserDetail(null);
+    const r = await adminApi.userDetail(id);
+    if (r.ok) setUserDetail(r.data);
+  };
+  const blockUserAction = async (id: number) => {
+    const reason = prompt("Причина блокировки (необязательно):") ?? undefined;
+    setUserBusy(true);
+    await adminApi.blockUser(id, reason || undefined);
+    setUserBusy(false);
+    await openUserDetail(id);
+    reloadUsers(userSearch.trim() || undefined);
+  };
+  const unblockUserAction = async (id: number) => {
+    setUserBusy(true);
+    await adminApi.unblockUser(id);
+    setUserBusy(false);
+    await openUserDetail(id);
+    reloadUsers(userSearch.trim() || undefined);
+  };
+  const deleteUserAction = async (id: number) => {
+    if (!confirm("Удалить пользователя безвозвратно? Это действие нельзя отменить.")) return;
+    setUserBusy(true);
+    await adminApi.deleteUser(id);
+    setUserBusy(false);
+    setUserDetail(null);
+    reloadUsers(userSearch.trim() || undefined);
+  };
+
+  // ── Парсер магазинов ──
+  const runParser = async () => {
+    if (!parserCity.trim()) { setParserMsg("Укажите город"); return; }
+    setParserBusy(true); setParserMsg("");
+    const r = await shopParserApi.parse(parserCity.trim(), parserKind, parserCount);
+    setParserBusy(false);
+    if (r.ok) {
+      setParserMsg(`Сохранено: ${r.data.saved ?? 0}`);
+      shopParserApi.list().then(rr => { if (rr.ok) setParserShops(rr.data.shops); });
+    } else {
+      setParserMsg(r.data.error || "Ошибка парсинга");
+    }
+  };
+  const toggleShopContacted = async (id: number) => {
+    await shopParserApi.toggleContacted(id);
+    shopParserApi.list().then(r => { if (r.ok) setParserShops(r.data.shops); });
+  };
+  const deleteShop = async (id: number) => {
+    if (!confirm("Удалить магазин из списка?")) return;
+    await shopParserApi.delete(id);
+    shopParserApi.list().then(r => { if (r.ok) setParserShops(r.data.shops); });
+  };
+
+  // ── Статьи ──
+  const reloadArticles = () => articlesApi.adminList().then(r => { if (r.ok) setArticlesList(r.data.articles); });
+  const generateArticle = async () => {
+    if (!artTopic.trim()) { setArtMsg("Укажите тему"); return; }
+    setArtBusy(true); setArtMsg("");
+    const r = await articlesApi.generate(artTopic.trim(), artCategory);
+    setArtBusy(false);
+    if (r.ok && r.data.draft) {
+      const d = r.data.draft;
+      setArtDraft({ title: d.title || "", excerpt: d.excerpt || "", body: d.body || "", cover_url: "", category: d.category || artCategory, is_published: false });
+    } else {
+      setArtMsg(r.data.error || "Ошибка генерации");
+    }
+  };
+  const newEmptyDraft = () => setArtDraft({ title: "", excerpt: "", body: "", cover_url: "", category: artCategory, is_published: false });
+  const editArticle = (a: AdminArticle) => {
+    setArtDraft({ id: a.id, title: a.title, excerpt: a.excerpt || "", body: "", cover_url: a.cover_url || "", category: a.category || artCategory, is_published: a.is_published });
+    setArtMsg("Откройте тело статьи для редактирования (загрузится текущий черновик)");
+  };
+  const uploadArtCover = async (file: File) => {
+    if (!file || !artDraft) return;
+    setArtCoverUploading(true);
+    const url = await uploadApi.upload(file);
+    setArtCoverUploading(false);
+    if (url) setArtDraft({ ...artDraft, cover_url: url });
+  };
+  const saveArticle = async () => {
+    if (!artDraft) return;
+    if (!artDraft.title.trim() || !artDraft.body.trim()) { setArtMsg("Заполните заголовок и текст"); return; }
+    setArtBusy(true); setArtMsg("");
+    const r = await articlesApi.save({
+      id: artDraft.id,
+      title: artDraft.title,
+      excerpt: artDraft.excerpt,
+      body: artDraft.body,
+      cover_url: artDraft.cover_url || undefined,
+      category: artDraft.category,
+      is_published: artDraft.is_published,
+    });
+    setArtBusy(false);
+    if (r.ok) { setArtMsg("Сохранено"); setArtDraft(null); reloadArticles(); }
+    else setArtMsg(r.data.error || "Ошибка сохранения");
+  };
+  const deleteArticle = async (id: number) => {
+    if (!confirm("Удалить статью?")) return;
+    await articlesApi.delete(id);
+    reloadArticles();
   };
 
   const act = async (id: number, type: "approve" | "reject") => {
@@ -3653,7 +3972,7 @@ function AdminScreen({ user }: { user: User | null }) {
       )}
 
       <div className="flex gap-2 mb-4 flex-wrap">
-        {([["withdrawals", "Выводы"], ["banners", "Баннеры"], ["shops", "Магазины"], ["chats", "Чаты"]] as const).map(([k, l]) => (
+        {([["withdrawals", "Выводы"], ["banners", "Баннеры"], ["shops", "Магазины"], ["chats", "Чаты"], ["users", "Пользователи"], ["parser", "Парсер"], ["articles", "Статьи"]] as const).map(([k, l]) => (
           <button key={k} onClick={() => setAdminTab(k)}
             className="flex-1 min-w-[70px] py-2.5 rounded-xl text-xs font-medium transition-all"
             style={adminTab === k ? { background: "var(--grad-main)", color: "#fff" } : { background: "rgba(255,255,255,0.05)", color: "rgba(255,255,255,0.4)" }}>
@@ -3951,6 +4270,331 @@ function AdminScreen({ user }: { user: User | null }) {
         </div>
       )}
 
+      {adminTab === "users" && (
+        <div className="space-y-3">
+          {userDetail ? (
+            <div className="glass rounded-2xl p-4 space-y-4">
+              <button onClick={() => setUserDetail(null)} className="flex items-center gap-1 text-white/50 text-sm">
+                <Icon name="ChevronLeft" size={16} /> К списку
+              </button>
+              <div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <p className="text-white font-oswald text-lg font-bold">{userDetail.profile.name}</p>
+                  {userDetail.profile.is_blocked && <span className="text-xs px-2 py-0.5 rounded" style={{ background: "rgba(239,68,68,0.2)", color: "#f87171" }}>Заблокирован</span>}
+                </div>
+                <p className="text-white/40 text-xs mt-0.5">ID: {userDetail.profile.id} · {userDetail.profile.email || "—"} · {userDetail.profile.phone || "—"}</p>
+                {userDetail.profile.block_reason && <p className="text-red-400 text-xs mt-1">Причина: {userDetail.profile.block_reason}</p>}
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div className="glass rounded-xl p-2.5"><p className="font-oswald text-lg font-bold text-white">{formatPrice(userDetail.profile.balance)}</p><p className="text-white/40 text-[11px]">Баланс</p></div>
+                <div className="glass rounded-xl p-2.5"><p className="font-oswald text-lg font-bold" style={{ color: "#ec4899" }}>{userDetail.profile.coins ?? 0} 🌸</p><p className="text-white/40 text-[11px]">Лепестки</p></div>
+                <div className="glass rounded-xl p-2.5"><p className="font-oswald text-lg font-bold" style={{ color: "#a855f7" }}>{formatPrice(userDetail.profile.ref_earnings || 0)}</p><p className="text-white/40 text-[11px]">Реф. доход</p></div>
+                <div className="glass rounded-xl p-2.5"><p className="font-oswald text-lg font-bold text-white tracking-widest">{userDetail.profile.ref_code || "—"}</p><p className="text-white/40 text-[11px]">Реф. код</p></div>
+              </div>
+
+              {userDetail.subscription && (
+                <div className="glass rounded-xl p-3">
+                  <p className="text-white/50 text-xs font-medium mb-1">Подписка магазина</p>
+                  <p className="text-white/70 text-sm">{userDetail.subscription.shop_name || "—"} · {userDetail.subscription.status || "—"}</p>
+                  {userDetail.subscription.expires_at && <p className="text-white/30 text-xs">До: {new Date(userDetail.subscription.expires_at).toLocaleDateString("ru-RU")}</p>}
+                </div>
+              )}
+
+              <div>
+                <p className="text-white/50 text-xs font-medium mb-2">Букеты ({userDetail.bouquets.length})</p>
+                {userDetail.bouquets.length === 0 ? <p className="text-white/25 text-xs">Нет</p> : (
+                  <div className="space-y-1.5">
+                    {userDetail.bouquets.map(b => (
+                      <div key={b.id} className="glass rounded-lg px-3 py-2 flex items-center justify-between">
+                        <span className="text-white/70 text-sm truncate">{b.title}</span>
+                        <span className="text-white/40 text-xs flex-shrink-0">{b.current_price != null ? formatPrice(b.current_price) : ""} · {b.status || ""}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div>
+                <p className="text-white/50 text-xs font-medium mb-2">Сделки ({userDetail.deals.length})</p>
+                {userDetail.deals.length === 0 ? <p className="text-white/25 text-xs">Нет</p> : (
+                  <div className="space-y-1.5">
+                    {userDetail.deals.map(d => (
+                      <div key={d.id} className="glass rounded-lg px-3 py-2 flex items-center justify-between">
+                        <span className="text-white/70 text-sm">#{d.id} · {d.role === "seller" ? "Продавец" : "Покупатель"}</span>
+                        <span className="text-white/40 text-xs flex-shrink-0">{formatPrice(d.amount)} · {d.status}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div>
+                <p className="text-white/50 text-xs font-medium mb-2">Кого привёл ({userDetail.referrals.length})</p>
+                {userDetail.referrals.length === 0 ? <p className="text-white/25 text-xs">Нет</p> : (
+                  <div className="space-y-1.5">
+                    {userDetail.referrals.map(rf => (
+                      <div key={rf.id} className="glass rounded-lg px-3 py-2 flex items-center justify-between">
+                        <span className="text-white/70 text-sm truncate">{rf.name}</span>
+                        <span className="text-white/30 text-xs flex-shrink-0">{new Date(rf.created_at).toLocaleDateString("ru-RU")}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div>
+                <p className="text-white/50 text-xs font-medium mb-2">Чаты ({userDetail.chats.length})</p>
+                {userDetail.chats.length === 0 ? <p className="text-white/25 text-xs">Нет</p> : (
+                  <div className="space-y-1.5">
+                    {userDetail.chats.map(c => (
+                      <div key={c.other_id} className="glass rounded-lg px-3 py-2 flex items-center justify-between">
+                        <span className="text-white/70 text-sm truncate">{c.other_name}</span>
+                        <span className="text-white/30 text-xs flex-shrink-0">ID {c.other_id}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div className="flex gap-2 flex-wrap pt-1">
+                {userDetail.profile.is_blocked ? (
+                  <button disabled={userBusy} onClick={() => unblockUserAction(userDetail.profile.id)}
+                    className="flex-1 min-w-[120px] rounded-xl py-2.5 text-sm font-medium flex items-center justify-center gap-2 glass"
+                    style={{ color: "#4ade80" }}>
+                    <Icon name="UserCheck" size={15} /> Разблокировать
+                  </button>
+                ) : (
+                  <button disabled={userBusy} onClick={() => blockUserAction(userDetail.profile.id)}
+                    className="flex-1 min-w-[120px] rounded-xl py-2.5 text-sm font-medium flex items-center justify-center gap-2 glass"
+                    style={{ color: "#fbbf24" }}>
+                    <Icon name="UserX" size={15} /> Блокировать
+                  </button>
+                )}
+                <button disabled={userBusy} onClick={() => deleteUserAction(userDetail.profile.id)}
+                  className="flex-1 min-w-[120px] rounded-xl py-2.5 text-sm font-medium flex items-center justify-center gap-2 glass"
+                  style={{ color: "#f87171" }}>
+                  <Icon name="Trash2" size={15} /> Удалить
+                </button>
+              </div>
+            </div>
+          ) : (
+            <>
+              <div className="flex gap-2">
+                <input value={userSearch} onChange={e => setUserSearch(e.target.value)}
+                  onKeyDown={e => { if (e.key === "Enter") searchUsers(); }}
+                  placeholder="Поиск: имя, email, телефон"
+                  className="flex-1 glass rounded-xl px-3 py-2.5 text-white text-sm outline-none bg-transparent placeholder:text-white/30" />
+                <button onClick={searchUsers}
+                  className="px-4 rounded-xl text-sm font-medium flex items-center gap-2"
+                  style={{ background: "var(--grad-main)", color: "#fff" }}>
+                  <Icon name="Search" size={15} /> Найти
+                </button>
+              </div>
+              {usersList.length === 0 ? (
+                <div className="text-center py-10"><span className="text-3xl block mb-2">👥</span><p className="text-white/30 text-sm">Пользователей нет</p></div>
+              ) : (
+                <div className="space-y-2">
+                  {usersList.map(u => (
+                    <div key={u.id} className="glass rounded-2xl p-3">
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <p className="text-white text-sm font-medium truncate">{u.name}</p>
+                            {u.is_admin && <span className="text-[10px] px-1.5 py-0.5 rounded" style={{ background: "rgba(168,85,247,0.2)", color: "#c4b5fd" }}>admin</span>}
+                            {u.is_blocked && <span className="text-[10px] px-1.5 py-0.5 rounded" style={{ background: "rgba(239,68,68,0.2)", color: "#f87171" }}>блок</span>}
+                          </div>
+                          <p className="text-white/40 text-xs truncate">{u.email || "—"} · {u.phone || "—"}</p>
+                          <p className="text-white/30 text-[11px] mt-0.5">{formatPrice(u.balance)} · {u.coins ?? 0} 🌸 · ID {u.id}</p>
+                        </div>
+                        <button onClick={() => openUserDetail(u.id)}
+                          className="flex-shrink-0 glass rounded-xl px-3 py-2 text-xs font-medium text-white/60 flex items-center gap-1">
+                          <Icon name="Eye" size={13} /> Подробнее
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      )}
+
+      {adminTab === "parser" && (
+        <div className="space-y-3">
+          <div className="glass rounded-2xl p-4 space-y-3">
+            <p className="text-white/50 text-sm font-medium flex items-center gap-2">
+              <Icon name="Store" size={14} /> Парсер магазинов
+            </p>
+            <input value={parserCity} onChange={e => setParserCity(e.target.value)}
+              placeholder="Город (например, Москва)"
+              className="w-full glass rounded-xl px-3 py-2.5 text-white text-sm outline-none bg-transparent placeholder:text-white/30" />
+            <div className="flex gap-2">
+              <select value={parserKind} onChange={e => setParserKind(e.target.value)}
+                className="flex-1 glass rounded-xl px-3 py-2.5 text-white/70 text-sm outline-none bg-transparent">
+                <option value="цветочные магазины" className="bg-gray-900">Цветочные магазины</option>
+                <option value="свадебные агентства" className="bg-gray-900">Свадебные агентства</option>
+              </select>
+              <input type="number" min={1} max={50} value={parserCount}
+                onChange={e => setParserCount(parseInt(e.target.value) || 1)}
+                className="w-20 glass rounded-xl px-3 py-2.5 text-white text-sm outline-none bg-transparent" />
+            </div>
+            <button disabled={parserBusy} onClick={runParser}
+              className="w-full rounded-xl py-2.5 text-sm font-medium flex items-center justify-center gap-2"
+              style={{ background: "var(--grad-main)", color: "#fff", opacity: parserBusy ? 0.6 : 1 }}>
+              <Icon name="Sparkles" size={15} /> {parserBusy ? "Сбор данных..." : "Запустить парсинг"}
+            </button>
+            {parserMsg && <p className="text-sm text-center text-pink-400">{parserMsg}</p>}
+            <button onClick={() => window.open(shopParserApi.exportUrl(parserCity.trim() || undefined))}
+              className="w-full glass rounded-xl py-2.5 text-sm font-medium flex items-center justify-center gap-2 text-white/60">
+              <Icon name="Download" size={15} /> Скачать CSV
+            </button>
+            <p className="text-white/30 text-[11px] leading-relaxed">
+              Данные собираются с помощью ИИ и могут содержать неточности — проверяйте контакты перед использованием.
+            </p>
+          </div>
+
+          {parserShops.length === 0 ? (
+            <div className="text-center py-10"><span className="text-3xl block mb-2">🏪</span><p className="text-white/30 text-sm">Магазинов нет</p></div>
+          ) : (
+            <div className="space-y-2">
+              {parserShops.map(s => (
+                <div key={s.id} className="glass rounded-2xl p-3">
+                  <div className="flex items-center justify-between gap-2 mb-1">
+                    <p className="text-white text-sm font-medium truncate">{s.name}</p>
+                    {s.contacted && <span className="text-[10px] px-1.5 py-0.5 rounded flex-shrink-0" style={{ background: "rgba(74,222,128,0.18)", color: "#4ade80" }}>связались</span>}
+                  </div>
+                  <p className="text-white/40 text-xs">{s.city}{s.address ? ` · ${s.address}` : ""}</p>
+                  <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-1">
+                    {s.phone && <span className="text-white/50 text-xs">📞 {s.phone}</span>}
+                    {s.email && <span className="text-white/50 text-xs">✉ {s.email}</span>}
+                    {s.website && <a href={s.website} target="_blank" rel="noreferrer" className="text-xs" style={{ color: "#a855f7" }}>🌐 сайт</a>}
+                    {s.instagram && <span className="text-white/50 text-xs">📷 {s.instagram}</span>}
+                  </div>
+                  <div className="flex gap-2 mt-2">
+                    <button onClick={() => toggleShopContacted(s.id)}
+                      className="flex-1 glass rounded-lg py-1.5 text-xs font-medium flex items-center justify-center gap-1.5"
+                      style={{ color: s.contacted ? "#4ade80" : "rgba(255,255,255,0.5)" }}>
+                      <Icon name={s.contacted ? "CheckSquare" : "Square"} size={13} /> Связались
+                    </button>
+                    <button onClick={() => deleteShop(s.id)}
+                      className="glass rounded-lg px-3 py-1.5 text-xs font-medium flex items-center gap-1.5"
+                      style={{ color: "#f87171" }}>
+                      <Icon name="Trash2" size={13} />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {adminTab === "articles" && (
+        <div className="space-y-3">
+          <div className="glass rounded-2xl p-4 space-y-3">
+            <p className="text-white/50 text-sm font-medium flex items-center gap-2">
+              <Icon name="Sparkles" size={14} /> Генератор статей
+            </p>
+            <input value={artTopic} onChange={e => setArtTopic(e.target.value)}
+              placeholder="Тема статьи"
+              className="w-full glass rounded-xl px-3 py-2.5 text-white text-sm outline-none bg-transparent placeholder:text-white/30" />
+            <input value={artCategory} onChange={e => setArtCategory(e.target.value)}
+              placeholder="Категория"
+              className="w-full glass rounded-xl px-3 py-2.5 text-white text-sm outline-none bg-transparent placeholder:text-white/30" />
+            <div className="flex gap-2">
+              <button disabled={artBusy} onClick={generateArticle}
+                className="flex-1 rounded-xl py-2.5 text-sm font-medium flex items-center justify-center gap-2"
+                style={{ background: "var(--grad-main)", color: "#fff", opacity: artBusy ? 0.6 : 1 }}>
+                <Icon name="Sparkles" size={15} /> {artBusy ? "Генерация..." : "Сгенерировать через AI"}
+              </button>
+              <button onClick={newEmptyDraft}
+                className="glass rounded-xl px-4 py-2.5 text-sm font-medium text-white/60 flex items-center gap-2">
+                <Icon name="FileText" size={15} /> Вручную
+              </button>
+            </div>
+            {artMsg && <p className="text-sm text-center text-pink-400">{artMsg}</p>}
+          </div>
+
+          {artDraft && (
+            <div className="glass rounded-2xl p-4 space-y-3" style={{ border: "1px solid rgba(255,61,139,0.15)" }}>
+              <p className="text-white/50 text-sm font-medium">{artDraft.id ? "Редактирование статьи" : "Черновик"}</p>
+              <input value={artDraft.title} onChange={e => setArtDraft({ ...artDraft, title: e.target.value })}
+                placeholder="Заголовок"
+                className="w-full glass rounded-xl px-3 py-2.5 text-white text-sm outline-none bg-transparent placeholder:text-white/30" />
+              <input value={artDraft.excerpt} onChange={e => setArtDraft({ ...artDraft, excerpt: e.target.value })}
+                placeholder="Краткое описание"
+                className="w-full glass rounded-xl px-3 py-2.5 text-white text-sm outline-none bg-transparent placeholder:text-white/30" />
+              <textarea value={artDraft.body} onChange={e => setArtDraft({ ...artDraft, body: e.target.value })}
+                placeholder="Текст статьи"
+                rows={10}
+                className="w-full glass rounded-xl px-3 py-2.5 text-white text-sm outline-none bg-transparent placeholder:text-white/30 resize-y" />
+              <input value={artDraft.category} onChange={e => setArtDraft({ ...artDraft, category: e.target.value })}
+                placeholder="Категория"
+                className="w-full glass rounded-xl px-3 py-2.5 text-white text-sm outline-none bg-transparent placeholder:text-white/30" />
+              <div className="flex items-center gap-2">
+                <input value={artDraft.cover_url} onChange={e => setArtDraft({ ...artDraft, cover_url: e.target.value })}
+                  placeholder="URL обложки"
+                  className="flex-1 glass rounded-xl px-3 py-2.5 text-white text-sm outline-none bg-transparent placeholder:text-white/30" />
+                <button onClick={() => artCoverRef.current?.click()}
+                  className="glass rounded-xl px-4 py-2.5 text-sm font-medium text-white/60 flex items-center gap-2">
+                  <Icon name="Upload" size={15} /> {artCoverUploading ? "..." : "Загрузить"}
+                </button>
+                <input ref={artCoverRef} type="file" accept="image/*" className="hidden"
+                  onChange={e => { const f = e.target.files?.[0]; if (f) uploadArtCover(f); }} />
+              </div>
+              {artDraft.cover_url && <img src={artDraft.cover_url} alt="" className="w-full h-32 object-cover rounded-xl" />}
+              <label className="flex items-center gap-2 text-white/60 text-sm cursor-pointer">
+                <input type="checkbox" checked={artDraft.is_published} onChange={e => setArtDraft({ ...artDraft, is_published: e.target.checked })} />
+                Опубликовать
+              </label>
+              <div className="flex gap-2">
+                <button disabled={artBusy} onClick={saveArticle}
+                  className="flex-1 rounded-xl py-2.5 text-sm font-medium flex items-center justify-center gap-2"
+                  style={{ background: "var(--grad-main)", color: "#fff", opacity: artBusy ? 0.6 : 1 }}>
+                  <Icon name="Check" size={15} /> Сохранить
+                </button>
+                <button onClick={() => setArtDraft(null)}
+                  className="glass rounded-xl px-4 py-2.5 text-sm font-medium text-white/50">
+                  Отмена
+                </button>
+              </div>
+            </div>
+          )}
+
+          {articlesList.length === 0 ? (
+            <div className="text-center py-10"><span className="text-3xl block mb-2">📝</span><p className="text-white/30 text-sm">Статей нет</p></div>
+          ) : (
+            <div className="space-y-2">
+              {articlesList.map(a => (
+                <div key={a.id} className="glass rounded-2xl p-3">
+                  <div className="flex items-center justify-between gap-2 mb-1">
+                    <p className="text-white text-sm font-medium truncate">{a.title}</p>
+                    <span className="text-[10px] px-1.5 py-0.5 rounded flex-shrink-0"
+                      style={a.is_published ? { background: "rgba(74,222,128,0.18)", color: "#4ade80" } : { background: "rgba(255,255,255,0.08)", color: "rgba(255,255,255,0.4)" }}>
+                      {a.is_published ? "опубл." : "черновик"}
+                    </span>
+                  </div>
+                  <p className="text-white/40 text-xs truncate">{a.excerpt || "—"}</p>
+                  <p className="text-white/30 text-[11px] mt-0.5">{a.category || "—"} · 👁 {a.views} · {new Date(a.created_at).toLocaleDateString("ru-RU")}</p>
+                  <div className="flex gap-2 mt-2">
+                    <button onClick={() => editArticle(a)}
+                      className="flex-1 glass rounded-lg py-1.5 text-xs font-medium text-white/60 flex items-center justify-center gap-1.5">
+                      <Icon name="Pencil" size={13} /> Редактировать
+                    </button>
+                    <button onClick={() => deleteArticle(a.id)}
+                      className="glass rounded-lg px-3 py-1.5 text-xs font-medium flex items-center gap-1.5"
+                      style={{ color: "#f87171" }}>
+                      <Icon name="Trash2" size={13} />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Рассылка уведомлений */}
       <div className="glass rounded-2xl p-4" style={{ border: "1px solid rgba(255,61,139,0.15)" }}>
         <p className="text-white/50 text-sm font-medium mb-3">Отправить уведомление</p>
@@ -4033,6 +4677,7 @@ export default function Index() {
   const [authChecked, setAuthChecked] = useState(false);
   const [activeTab, setActiveTab] = useState("auctions");
   const [bidModal, setBidModal] = useState<Bouquet | null>(null);
+  const [showCoins, setShowCoins] = useState(false);
   const { maintenance } = useMaintenance();
   const { show: showOnboarding, start: startOnboarding, finish: finishOnboarding, triggerIfNew } = useOnboarding();
 
@@ -4185,6 +4830,11 @@ export default function Index() {
               <span className="font-oswald text-xs font-bold">Магазины</span>
             </button>
             <NotificationBell userId={user.id} />
+            <button onClick={() => setShowCoins(true)}
+              className="glass px-3 py-1.5 rounded-xl flex items-center gap-1 transition-all"
+              title="Лепестки">
+              <span className="font-oswald text-sm font-bold" style={{ color: "#ec4899" }}>🌸 {user.coins ?? 0}</span>
+            </button>
             <div className="glass px-3 py-1.5 rounded-xl">
               <span className="gradient-text font-oswald text-sm font-bold">{formatPrice(user.balance)}</span>
             </div>
@@ -4255,6 +4905,7 @@ export default function Index() {
       </nav>
 
       {bidModal && <BidModal bouquet={bidModal} onClose={() => setBidModal(null)} onBid={handleBid} />}
+      {showCoins && <CoinsModal user={user} onClose={() => setShowCoins(false)} onUpdated={refreshUser} />}
       {showOnboarding && <OnboardingTour onFinish={finishOnboarding} />}
 
       {user && (

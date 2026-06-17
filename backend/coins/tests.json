@@ -1,0 +1,1 @@
+{"tests": [{"name": "Balance without auth", "method": "GET", "path": "/?action=balance", "expectedStatus": 401, "expectedBody": {"error": "Не авторизован"}, "bodyMatcher": "partial"}]}

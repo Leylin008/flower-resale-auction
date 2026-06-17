@@ -13,6 +13,9 @@ const URLS = {
   banners: "https://functions.poehali.dev/7efb814d-6696-46cc-99c4-b9eb27ac3f11",
   notifications: "https://functions.poehali.dev/4e31bfb6-d58a-479b-a49c-c8f515de2d4c",
   ai: "https://functions.poehali.dev/651432b0-8591-4557-9212-2d16386a9d79",
+  coins: "https://functions.poehali.dev/a6016fdc-9b75-4bad-b7e8-eb64bc754965",
+  articles: "https://functions.poehali.dev/3aa82265-f2fc-482e-a1c1-d857bd25cfcd",
+  shopParser: "https://functions.poehali.dev/374718a7-66b5-484f-a55e-c5141f428484",
 };
 
 export async function fetchAllCities(): Promise<string[]> {
@@ -216,6 +219,53 @@ export const adminApi = {
   settings: () => req(`${URLS.admin}/?action=settings`),
   setMaintenance: (enabled: boolean) =>
     req(`${URLS.admin}/?action=set_maintenance`, { method: "POST", body: JSON.stringify({ action: "set_maintenance", enabled }) }),
+  // Управление пользователями
+  users: (q?: string) =>
+    req(`${URLS.admin}/?action=users${q ? `&q=${encodeURIComponent(q)}` : ""}`),
+  userDetail: (user_id: number) =>
+    req(`${URLS.admin}/?action=user_detail&user_id=${user_id}`),
+  blockUser: (user_id: number, reason?: string) =>
+    req(`${URLS.admin}/?action=block_user`, { method: "POST", body: JSON.stringify({ action: "block_user", user_id, reason }) }),
+  unblockUser: (user_id: number) =>
+    req(`${URLS.admin}/?action=unblock_user`, { method: "POST", body: JSON.stringify({ action: "unblock_user", user_id }) }),
+  deleteUser: (user_id: number) =>
+    req(`${URLS.admin}/?action=delete_user`, { method: "POST", body: JSON.stringify({ action: "delete_user", user_id }) }),
+  referralPool: () => req(`${URLS.admin}/?action=referral_pool`),
+};
+
+// COINS «Лепестки»
+export const coinsApi = {
+  balance: () => req(`${URLS.coins}/?action=balance`),
+  history: () => req(`${URLS.coins}/?action=history`),
+  purchase: (amount: number) =>
+    req(`${URLS.coins}/?action=purchase`, { method: "POST", body: JSON.stringify({ action: "purchase", amount }) }),
+  spend: (kind: string, bouquet_id: number) =>
+    req(`${URLS.coins}/?action=spend`, { method: "POST", body: JSON.stringify({ action: "spend", kind, bouquet_id }) }),
+};
+
+// ARTICLES (статьи)
+export const articlesApi = {
+  list: () => req(`${URLS.articles}/?action=list`),
+  get: (slug: string) => req(`${URLS.articles}/?action=get&slug=${encodeURIComponent(slug)}`),
+  adminList: () => req(`${URLS.articles}/?action=admin_list`),
+  generate: (topic: string, category?: string) =>
+    req(`${URLS.articles}/?action=generate`, { method: "POST", body: JSON.stringify({ action: "generate", topic, category }) }),
+  save: (data: { id?: number; title: string; excerpt?: string; body: string; cover_url?: string; category?: string; is_published?: boolean }) =>
+    req(`${URLS.articles}/?action=save`, { method: "POST", body: JSON.stringify({ action: "save", ...data }) }),
+  delete: (id: number) =>
+    req(`${URLS.articles}/?action=delete`, { method: "POST", body: JSON.stringify({ action: "delete", id }) }),
+};
+
+// SHOP PARSER (парсер магазинов)
+export const shopParserApi = {
+  list: (city?: string) => req(`${URLS.shopParser}/?action=list${city ? `&city=${encodeURIComponent(city)}` : ""}`),
+  parse: (city: string, kind?: string, count?: number) =>
+    req(`${URLS.shopParser}/?action=parse`, { method: "POST", body: JSON.stringify({ action: "parse", city, kind, count }) }),
+  toggleContacted: (id: number) =>
+    req(`${URLS.shopParser}/?action=toggle_contacted`, { method: "POST", body: JSON.stringify({ action: "toggle_contacted", id }) }),
+  delete: (id: number) =>
+    req(`${URLS.shopParser}/?action=delete`, { method: "POST", body: JSON.stringify({ action: "delete", id }) }),
+  exportUrl: (city?: string) => `${URLS.shopParser}/?action=export${city ? `&city=${encodeURIComponent(city)}` : ""}`,
 };
 
 // Публичный флаг режима доработки (без авторизации)

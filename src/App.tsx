@@ -11,6 +11,8 @@ import Investor from "./pages/Investor";
 import Negotiation from "./pages/Negotiation";
 import Pitch from "./pages/Pitch";
 import Anime from "./pages/Anime";
+import Articles from "./pages/Articles";
+import Article from "./pages/Article";
 import Privacy from "./pages/Privacy";
 import Cookies from "./pages/Cookies";
 import Terms from "./pages/Terms";
@@ -55,6 +57,8 @@ const App = () => (
             <Route path="/negotiation" element={<Negotiation />} />
             <Route path="/pitch" element={<Pitch />} />
             <Route path="/anime" element={<Anime />} />
+            <Route path="/articles" element={<Articles />} />
+            <Route path="/articles/:slug" element={<Article />} />
             <Route path="/privacy" element={<Privacy />} />
             <Route path="/cookies" element={<Cookies />} />
             <Route path="/terms" element={<Terms />} />

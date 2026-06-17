@@ -311,6 +311,158 @@ def handler(event: dict, context) -> dict:
             conn.commit()
             return {"statusCode": 200, "headers": CORS, "body": json.dumps({"ok": True, "maintenance_mode": enabled})}
 
+        # ───────── УПРАВЛЕНИЕ ПОЛЬЗОВАТЕЛЯМИ ─────────
+        # GET users — поиск по имени / email / телефону
+        if action == "users":
+            q = (qs.get("q") or "").strip()
+            where = ""
+            params = []
+            if q:
+                where = "WHERE u.name ILIKE %s OR u.email ILIKE %s OR u.phone ILIKE %s"
+                like = f"%{q}%"
+                params = [like, like, like]
+            with conn.cursor() as cur:
+                cur.execute(
+                    f"SELECT u.id, u.name, u.email, u.phone, u.city, u.balance, u.coins, "
+                    f"u.is_blocked, u.is_admin, u.created_at, u.sales_count, u.purchases_count, u.ref_code "
+                    f"FROM {SCHEMA}.users u {where} ORDER BY u.created_at DESC LIMIT 100",
+                    tuple(params)
+                )
+                rows = cur.fetchall()
+            users = [{
+                "id": r[0], "name": r[1], "email": r[2], "phone": r[3], "city": r[4],
+                "balance": float(r[5]) if r[5] is not None else 0, "coins": r[6],
+                "is_blocked": bool(r[7]), "is_admin": bool(r[8]), "created_at": str(r[9]),
+                "sales_count": r[10], "purchases_count": r[11], "ref_code": r[12],
+            } for r in rows]
+            return {"statusCode": 200, "headers": CORS, "body": json.dumps({"users": users})}
+
+        # GET user_detail — полная карточка: подписка, букеты, продажи, баланс, рефералы
+        if action == "user_detail":
+            uid = int(qs.get("user_id", 0))
+            if not uid:
+                return {"statusCode": 400, "headers": CORS, "body": json.dumps({"error": "user_id обязателен"})}
+            with conn.cursor() as cur:
+                cur.execute(
+                    f"SELECT id, name, email, phone, city, balance, coins, is_blocked, block_reason, "
+                    f"blocked_at, is_admin, created_at, sales_count, purchases_count, rating, "
+                    f"ref_code, ref_earnings, referred_by FROM {SCHEMA}.users WHERE id = %s", (uid,)
+                )
+                u = cur.fetchone()
+                if not u:
+                    return {"statusCode": 404, "headers": CORS, "body": json.dumps({"error": "Пользователь не найден"})}
+                profile = {
+                    "id": u[0], "name": u[1], "email": u[2], "phone": u[3], "city": u[4],
+                    "balance": float(u[5]) if u[5] is not None else 0, "coins": u[6],
+                    "is_blocked": bool(u[7]), "block_reason": u[8], "blocked_at": str(u[9]) if u[9] else None,
+                    "is_admin": bool(u[10]), "created_at": str(u[11]), "sales_count": u[12],
+                    "purchases_count": u[13], "rating": float(u[14]) if u[14] else 0,
+                    "ref_code": u[15], "ref_earnings": float(u[16]) if u[16] else 0,
+                }
+                # подписка магазина
+                cur.execute(
+                    f"SELECT plan, status, expires_at, ai_recommend FROM {SCHEMA}.shop_subscriptions WHERE user_id = %s", (uid,)
+                )
+                sr = cur.fetchone()
+                subscription = {"plan": sr[0], "status": sr[1], "expires_at": str(sr[2]) if sr[2] else None,
+                                "ai_recommend": bool(sr[3])} if sr else None
+                # букеты
+                cur.execute(
+                    f"SELECT id, title, status, current_price, fixed_price, sale_type, created_at "
+                    f"FROM {SCHEMA}.bouquets WHERE seller_id = %s ORDER BY created_at DESC LIMIT 50", (uid,)
+                )
+                bouquets = [{"id": r[0], "title": r[1], "status": r[2],
+                             "current_price": float(r[3]) if r[3] else None,
+                             "fixed_price": float(r[4]) if r[4] else None,
+                             "sale_type": r[5], "created_at": str(r[6])} for r in cur.fetchall()]
+                # продажи и покупки
+                cur.execute(
+                    f"SELECT id, amount, escrow_status, seller_id, buyer_id, created_at "
+                    f"FROM {SCHEMA}.orders WHERE seller_id = %s OR buyer_id = %s ORDER BY created_at DESC LIMIT 50",
+                    (uid, uid)
+                )
+                deals = [{"id": r[0], "amount": float(r[1]) if r[1] else 0, "status": r[2],
+                          "role": "Продавец" if r[3] == uid else "Покупатель",
+                          "created_at": str(r[5])} for r in cur.fetchall()]
+                # рефералы (кого привёл)
+                cur.execute(
+                    f"SELECT id, name, created_at FROM {SCHEMA}.users WHERE referred_by = %s ORDER BY created_at DESC", (uid,)
+                )
+                referrals = [{"id": r[0], "name": r[1], "created_at": str(r[2])} for r in cur.fetchall()]
+                # переписки (диалоги пользователя)
+                cur.execute(
+                    f"SELECT DISTINCT CASE WHEN m.sender_id = %s THEN m.receiver_id ELSE m.sender_id END AS other_id, "
+                    f"u2.name FROM {SCHEMA}.messages m "
+                    f"JOIN {SCHEMA}.users u2 ON u2.id = CASE WHEN m.sender_id = %s THEN m.receiver_id ELSE m.sender_id END "
+                    f"WHERE m.sender_id = %s OR m.receiver_id = %s LIMIT 50",
+                    (uid, uid, uid, uid)
+                )
+                chats = [{"other_id": r[0], "other_name": r[1]} for r in cur.fetchall()]
+            return {"statusCode": 200, "headers": CORS, "body": json.dumps({
+                "profile": profile, "subscription": subscription, "bouquets": bouquets,
+                "deals": deals, "referrals": referrals, "chats": chats,
+            })}
+
+        # POST block_user / unblock_user
+        if action == "block_user" and method == "POST":
+            uid = int(body.get("user_id", 0))
+            reason = body.get("reason", "")
+            with conn.cursor() as cur:
+                cur.execute(
+                    f"UPDATE {SCHEMA}.users SET is_blocked = TRUE, block_reason = %s, blocked_at = NOW() "
+                    f"WHERE id = %s AND is_admin = FALSE RETURNING id", (reason, uid)
+                )
+                ok = cur.fetchone()
+                if ok:
+                    cur.execute(f"DELETE FROM {SCHEMA}.sessions WHERE user_id = %s", (uid,))
+            conn.commit()
+            if not ok:
+                return {"statusCode": 400, "headers": CORS, "body": json.dumps({"error": "Нельзя заблокировать администратора или пользователь не найден"})}
+            return {"statusCode": 200, "headers": CORS, "body": json.dumps({"ok": True, "message": "Пользователь заблокирован"})}
+
+        if action == "unblock_user" and method == "POST":
+            uid = int(body.get("user_id", 0))
+            with conn.cursor() as cur:
+                cur.execute(
+                    f"UPDATE {SCHEMA}.users SET is_blocked = FALSE, block_reason = NULL, blocked_at = NULL WHERE id = %s", (uid,)
+                )
+            conn.commit()
+            return {"statusCode": 200, "headers": CORS, "body": json.dumps({"ok": True, "message": "Пользователь разблокирован"})}
+
+        # POST delete_user — удаление (мягкое: блок + пометка)
+        if action == "delete_user" and method == "POST":
+            uid = int(body.get("user_id", 0))
+            with conn.cursor() as cur:
+                cur.execute(f"SELECT is_admin FROM {SCHEMA}.users WHERE id = %s", (uid,))
+                ur = cur.fetchone()
+                if not ur:
+                    return {"statusCode": 404, "headers": CORS, "body": json.dumps({"error": "Пользователь не найден"})}
+                if ur[0]:
+                    return {"statusCode": 400, "headers": CORS, "body": json.dumps({"error": "Нельзя удалить администратора"})}
+                cur.execute(f"DELETE FROM {SCHEMA}.sessions WHERE user_id = %s", (uid,))
+                cur.execute(f"UPDATE {SCHEMA}.bouquets SET status = 'removed' WHERE seller_id = %s", (uid,))
+                cur.execute(
+                    f"UPDATE {SCHEMA}.users SET is_blocked = TRUE, block_reason = 'Аккаунт удалён администратором', "
+                    f"blocked_at = NOW(), name = 'Удалённый пользователь', email = NULL, phone = CONCAT('deleted_', id) "
+                    f"WHERE id = %s", (uid,)
+                )
+            conn.commit()
+            return {"statusCode": 200, "headers": CORS, "body": json.dumps({"ok": True, "message": "Пользователь удалён"})}
+
+        # GET referral_pool — состояние общего реферального пула по годам
+        if action == "referral_pool":
+            with conn.cursor() as cur:
+                cur.execute(
+                    f"SELECT year, amount, distributed, distributed_at FROM {SCHEMA}.referral_pool ORDER BY year DESC"
+                )
+                pools = [{"year": r[0], "amount": float(r[1]), "distributed": bool(r[2]),
+                          "distributed_at": str(r[3]) if r[3] else None} for r in cur.fetchall()]
+                cur.execute(
+                    f"SELECT COUNT(DISTINCT referred_by) FROM {SCHEMA}.users WHERE referred_by IS NOT NULL"
+                )
+                eligible = cur.fetchone()[0]
+            return {"statusCode": 200, "headers": CORS, "body": json.dumps({"pools": pools, "eligible_referrers": eligible})}
+
         return {"statusCode": 400, "headers": CORS, "body": json.dumps({"error": "Unknown action"})}
     finally:
         conn.close()

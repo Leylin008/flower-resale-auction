@@ -223,12 +223,13 @@ def handler(event: dict, context) -> dict:
                      f"Привет! Я оплатил(а) заказ на '{order[5]}'. Давайте договоримся о встрече для передачи.",
                      order_id)
                 )
-                # Реферальное начисление 5% от суммы покупателю-рефереру
+                # Реферальное начисление: 4,5% рефереру напрямую + 0,5% в общий пул
                 cur.execute(f"SELECT referred_by FROM {SCHEMA}.users WHERE id = %s", (user["id"],))
                 ref_row = cur.fetchone()
                 if ref_row and ref_row[0]:
                     referrer_id = ref_row[0]
-                    ref_bonus = round(amount * 0.05)
+                    ref_bonus = round(amount * 0.045, 2)   # 4,5% рефереру
+                    pool_bonus = round(amount * 0.005, 2)  # 0,5% в годовой пул
                     if ref_bonus > 0:
                         cur.execute(
                             f"UPDATE {SCHEMA}.users SET balance = balance + %s, ref_earnings = ref_earnings + %s WHERE id = %s",
@@ -238,6 +239,18 @@ def handler(event: dict, context) -> dict:
                             f"INSERT INTO {SCHEMA}.referral_payouts (referrer_id, referee_id, order_id, amount) "
                             f"VALUES (%s, %s, %s, %s)",
                             (referrer_id, user["id"], order_id, ref_bonus)
+                        )
+                    if pool_bonus > 0:
+                        cur_year = datetime.now().year
+                        cur.execute(
+                            f"INSERT INTO {SCHEMA}.referral_pool (year, amount) VALUES (%s, %s) "
+                            f"ON CONFLICT (year) DO UPDATE SET amount = {SCHEMA}.referral_pool.amount + EXCLUDED.amount",
+                            (cur_year, pool_bonus)
+                        )
+                        cur.execute(
+                            f"INSERT INTO {SCHEMA}.referral_pool_contributions (year, order_id, amount) "
+                            f"VALUES (%s, %s, %s)",
+                            (cur_year, order_id, pool_bonus)
                         )
             conn.commit()
             return {"statusCode": 200, "headers": CORS, "body": json.dumps({

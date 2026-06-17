@@ -1,4 +1,7 @@
 {
+  "shop_parser": "https://functions.poehali.dev/374718a7-66b5-484f-a55e-c5141f428484",
+  "articles": "https://functions.poehali.dev/3aa82265-f2fc-482e-a1c1-d857bd25cfcd",
+  "coins": "https://functions.poehali.dev/a6016fdc-9b75-4bad-b7e8-eb64bc754965",
   "ai": "https://functions.poehali.dev/651432b0-8591-4557-9212-2d16386a9d79",
   "notifications": "https://functions.poehali.dev/4e31bfb6-d58a-479b-a49c-c8f515de2d4c",
   "banners": "https://functions.poehali.dev/7efb814d-6696-46cc-99c4-b9eb27ac3f11",

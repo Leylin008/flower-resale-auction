@@ -1,0 +1,1 @@
+{"tests": [{"name": "Forbidden without admin token", "method": "GET", "path": "/?action=list", "expectedStatus": 403, "expectedBody": {"error": "Доступ только для администратора"}, "bodyMatcher": "partial"}]}

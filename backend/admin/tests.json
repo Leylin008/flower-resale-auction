@@ -5,7 +5,7 @@
       "method": "GET",
       "path": "/?action=stats",
       "expectedStatus": 403,
-      "expectedBody": {"error": "string"},
+      "expectedBody": {"error": "Доступ только для администратора"},
       "bodyMatcher": "partial"
     }
   ]
