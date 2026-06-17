@@ -17,7 +17,9 @@ export function AuthScreen({ onAuth }: { onAuth: (user: User, token: string) => 
   const [regEmail, setRegEmail] = useState("");
   const [regRefCode, setRegRefCode] = useState(() => {
     const p = new URLSearchParams(window.location.search);
-    return p.get("ref") || "";
+    const fromUrl = p.get("ref");
+    if (fromUrl) return fromUrl.toUpperCase();
+    try { return (localStorage.getItem("ff_ref") || "").toUpperCase(); } catch { return ""; }
   });
   const [forgotEmail, setForgotEmail] = useState("");
   const [forgotSent, setForgotSent] = useState(false);

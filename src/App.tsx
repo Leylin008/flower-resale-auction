@@ -13,6 +13,7 @@ import Pitch from "./pages/Pitch";
 import Anime from "./pages/Anime";
 import Articles from "./pages/Articles";
 import Article from "./pages/Article";
+import Invite from "./pages/Invite";
 import Privacy from "./pages/Privacy";
 import Cookies from "./pages/Cookies";
 import Terms from "./pages/Terms";
@@ -59,6 +60,7 @@ const App = () => (
             <Route path="/anime" element={<Anime />} />
             <Route path="/articles" element={<Articles />} />
             <Route path="/articles/:slug" element={<Article />} />
+            <Route path="/i/:code" element={<Invite />} />
             <Route path="/privacy" element={<Privacy />} />
             <Route path="/cookies" element={<Cookies />} />
             <Route path="/terms" element={<Terms />} />
