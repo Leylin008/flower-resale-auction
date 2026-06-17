@@ -4904,6 +4904,11 @@ export default function Index() {
               <span className="font-oswald text-xs font-bold">Магазины</span>
             </button>
             <NotificationBell userId={user.id} />
+            <a href="/articles"
+              className="glass p-2 rounded-xl transition-all hover:scale-105 flex items-center justify-center"
+              title="Блог">
+              <Icon name="BookOpen" size={18} style={{ color: "rgba(255,255,255,0.4)" }} />
+            </a>
             <button onClick={() => setShowCoins(true)}
               className="glass px-3 py-1.5 rounded-xl flex items-center gap-1 transition-all"
               title="Лепестки">
@@ -4991,6 +4996,16 @@ export default function Index() {
             else setActiveTab("catalog");
           }}
         />
+      )}
+
+      {/* Плавающая кнопка VK-группы — над значком AI-консультанта */}
+      {user && (
+        <a href="https://vk.com/flowerflip" target="_blank" rel="noopener noreferrer"
+          className="fixed bottom-44 right-4 z-50 w-14 h-14 rounded-full flex items-center justify-center shadow-lg animate-fade-in-up"
+          style={{ background: "#2787F5", boxShadow: "0 8px 24px rgba(39,135,245,0.45)" }}
+          aria-label="Наша группа ВКонтакте" title="Мы ВКонтакте — подпишись и получи 🌸">
+          <span className="text-white font-bold text-lg">VK</span>
+        </a>
       )}
     </div>
   );
