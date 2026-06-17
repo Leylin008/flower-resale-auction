@@ -1,0 +1,1 @@
+ALTER TABLE t_p84229990_flower_resale_auctio.users ADD COLUMN IF NOT EXISTS vk_bonus_given BOOLEAN NOT NULL DEFAULT FALSE;

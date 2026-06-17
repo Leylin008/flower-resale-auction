@@ -2470,10 +2470,35 @@ function CoinsModal({ user, onClose, onUpdated }: { user: User | null; onClose: 
   const [showHistory, setShowHistory] = useState(false);
   const [history, setHistory] = useState<CoinHistoryItem[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
+  const [vkBonusGiven, setVkBonusGiven] = useState(false);
+  const [vkBonus, setVkBonus] = useState(40);
+  const [vkMsg, setVkMsg] = useState("");
+  const [vkVisited, setVkVisited] = useState(false);
 
   const refreshBalance = useCallback(() => {
-    coinsApi.balance().then(r => { if (r.ok) setCoins(r.data.coins); });
+    coinsApi.balance().then(r => {
+      if (r.ok) {
+        setCoins(r.data.coins);
+        setVkBonusGiven(!!r.data.vk_bonus_given);
+        if (r.data.vk_bonus) setVkBonus(r.data.vk_bonus);
+      }
+    });
   }, []);
+
+  const claimVk = async () => {
+    const r = await coinsApi.vkSubscribe();
+    if (r.ok && r.data.ok) {
+      setCoins(r.data.coins);
+      setVkBonusGiven(true);
+      setVkMsg(`Начислено ${r.data.earned} 🌸 за подписку!`);
+      onUpdated();
+    } else if (r.ok && r.data.already) {
+      setVkBonusGiven(true);
+      setVkMsg("Бонус за подписку уже получен");
+    } else {
+      setVkMsg(r.data.error || "Не удалось начислить бонус");
+    }
+  };
 
   useEffect(() => { refreshBalance(); }, [refreshBalance]);
 
@@ -2525,6 +2550,42 @@ function CoinsModal({ user, onClose, onUpdated }: { user: User | null; onClose: 
         <p className="text-white/50 text-sm leading-relaxed mb-4">
           Внутренние баллы FlowerFlip. Тратьте на продвижение букетов: поднятие в топ, выделение цветом, продление аукциона.
         </p>
+
+        {/* VK-группа: бонус за подписку */}
+        <div className="rounded-2xl p-4 mb-4" style={{ background: "rgba(36,113,191,0.12)", border: "1px solid rgba(36,113,191,0.35)" }}>
+          <div className="flex items-center gap-2 mb-2">
+            <div className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: "#2787F5" }}>
+              <span className="text-white font-bold text-sm">VK</span>
+            </div>
+            <div className="min-w-0">
+              <p className="text-white text-sm font-semibold leading-tight">Подпишись на нашу группу</p>
+              <p className="text-white/40 text-xs">и получи {vkBonus} 🌸 в подарок</p>
+            </div>
+          </div>
+          {vkBonusGiven ? (
+            <div className="flex items-center justify-center gap-2 rounded-xl py-2.5 text-sm font-medium"
+              style={{ background: "rgba(74,222,128,0.12)", color: "#4ade80" }}>
+              <Icon name="CheckCircle2" size={15} /> Бонус получен
+            </div>
+          ) : (
+            <div className="flex gap-2">
+              <a href="https://vk.com/flowerflip" target="_blank" rel="noopener noreferrer"
+                onClick={() => setVkVisited(true)}
+                className="flex-1 rounded-xl py-2.5 text-sm font-medium text-white flex items-center justify-center gap-1.5"
+                style={{ background: "#2787F5" }}>
+                <Icon name="ExternalLink" size={14} /> Открыть группу
+              </a>
+              <button onClick={claimVk} disabled={!vkVisited}
+                className="flex-1 rounded-xl py-2.5 text-sm font-medium text-white disabled:opacity-40"
+                style={{ background: "var(--grad-main)" }}>
+                Я подписался
+              </button>
+            </div>
+          )}
+          {vkMsg && (
+            <p className="text-xs text-center mt-2" style={{ color: vkMsg.includes("Начислено") ? "#4ade80" : "#fbbf24" }}>{vkMsg}</p>
+          )}
+        </div>
 
         <p className="text-white/50 text-xs font-medium mb-2">Купить баллы (1 ₽ = 1 балл)</p>
         <div className="grid grid-cols-2 gap-2 mb-3">
@@ -3067,6 +3128,19 @@ function ProfileScreen({ user, onLogout, onUpdate, onStartTour }: { user: User |
                   <p className="text-white/30 text-xs">Напишите нам по любому вопросу</p>
                 </div>
                 <Icon name="ExternalLink" size={13} className="text-white/20 flex-shrink-0" />
+              </a>
+              <a href="https://vk.com/flowerflip" target="_blank" rel="noopener noreferrer"
+                className="flex items-center gap-3 rounded-xl px-4 py-3 transition-colors group"
+                style={{ background: "rgba(36,113,191,0.12)", border: "1px solid rgba(36,113,191,0.35)" }}>
+                <div className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0"
+                  style={{ background: "#2787F5" }}>
+                  <span className="text-white font-bold text-xs">VK</span>
+                </div>
+                <div className="flex-1 min-w-0 text-left">
+                  <p className="text-white text-sm group-hover:text-white transition-colors">Мы ВКонтакте</p>
+                  <p className="text-white/40 text-xs">Подпишись и получи 40 🌸 баллов в подарок</p>
+                </div>
+                <Icon name="ExternalLink" size={13} className="text-white/30 flex-shrink-0" />
               </a>
               <a href="/articles"
                 className="flex items-center gap-3 glass rounded-xl px-4 py-3 hover:bg-white/5 transition-colors group">
