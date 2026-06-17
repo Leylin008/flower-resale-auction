@@ -76,8 +76,14 @@ async function req(url: string, options: RequestInit = {}) {
 export const authApi = {
   register: (name: string, phone: string, password: string, city?: string, email?: string, ref_code?: string) =>
     req(`${URLS.auth}/?action=register`, { method: "POST", body: JSON.stringify({ action: "register", name, phone, password, city, email, ref_code }) }),
-  login: (login: string, password: string) =>
-    req(`${URLS.auth}/?action=login`, { method: "POST", body: JSON.stringify({ action: "login", phone: login, email: login, password }) }),
+  login: (login: string, password: string, totp_code?: string) =>
+    req(`${URLS.auth}/?action=login`, { method: "POST", body: JSON.stringify({ action: "login", phone: login, email: login, password, totp_code }) }),
+  totpSetup: () =>
+    req(`${URLS.auth}/?action=totp_setup`, { method: "POST", body: JSON.stringify({ action: "totp_setup" }) }),
+  totpEnable: (code: string) =>
+    req(`${URLS.auth}/?action=totp_enable`, { method: "POST", body: JSON.stringify({ action: "totp_enable", code }) }),
+  totpDisable: (code: string) =>
+    req(`${URLS.auth}/?action=totp_disable`, { method: "POST", body: JSON.stringify({ action: "totp_disable", code }) }),
   me: () => req(`${URLS.auth}/?action=me`),
   update: (data: { name?: string; avatar_url?: string | null; city?: string; email?: string; phone?: string }) =>
     req(`${URLS.auth}/?action=update`, { method: "POST", body: JSON.stringify({ action: "update", ...data }) }),

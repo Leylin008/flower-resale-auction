@@ -2,6 +2,10 @@
 import json
 import os
 import hashlib
+import hmac
+import struct
+import time
+import base64
 import secrets
 import smtplib
 import ssl
@@ -10,6 +14,7 @@ from email.mime.multipart import MIMEMultipart
 import psycopg2
 
 SCHEMA = os.environ.get("MAIN_DB_SCHEMA", "t_p84229990_flower_resale_auctio")
+TOTP_ISSUER = "FlowerFlip"
 CORS = {
     "Access-Control-Allow-Origin": "*",
     "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
@@ -26,6 +31,40 @@ def hash_pwd(pwd: str) -> str:
 
 def make_token() -> str:
     return secrets.token_hex(32)
+
+# ── TOTP (Google Authenticator, RFC 6238) ──────────────────
+def gen_totp_secret() -> str:
+    """Случайный секрет в Base32 (как у Google Authenticator)."""
+    return base64.b32encode(secrets.token_bytes(20)).decode("utf-8").replace("=", "")
+
+def _totp_at(secret_b32: str, for_time: int, step: int = 30, digits: int = 6) -> str:
+    # дополняем base32 до кратности 8
+    pad = "=" * ((8 - len(secret_b32) % 8) % 8)
+    key = base64.b32decode(secret_b32.upper() + pad)
+    counter = int(for_time // step)
+    msg = struct.pack(">Q", counter)
+    digest = hmac.new(key, msg, hashlib.sha1).digest()
+    offset = digest[-1] & 0x0F
+    code_int = (struct.unpack(">I", digest[offset:offset + 4])[0] & 0x7FFFFFFF) % (10 ** digits)
+    return str(code_int).zfill(digits)
+
+def verify_totp(secret_b32: str, code: str) -> bool:
+    """Проверка кода с окном ±1 шаг (учёт рассинхрона времени)."""
+    if not code or not secret_b32:
+        return False
+    code = code.strip().replace(" ", "")
+    now = int(time.time())
+    for drift in (-1, 0, 1):
+        if _totp_at(secret_b32, now + drift * 30) == code:
+            return True
+    return False
+
+def totp_uri(secret_b32: str, account: str) -> str:
+    """otpauth:// ссылка для генерации QR-кода в приложении."""
+    import urllib.parse
+    label = urllib.parse.quote(f"{TOTP_ISSUER}:{account}")
+    params = urllib.parse.urlencode({"secret": secret_b32, "issuer": TOTP_ISSUER, "digits": 6, "period": 30})
+    return f"otpauth://totp/{label}?{params}"
 
 def send_email(to_email: str, subject: str, html: str):
     smtp_password = os.environ.get("SMTP_PASSWORD", "")
@@ -76,7 +115,7 @@ def get_user_by_token(conn, token: str):
             f"SELECT u.id, u.name, u.phone, u.avatar_url, u.rating, u.reviews_count, "
             f"u.sales_count, u.purchases_count, u.balance, u.created_at, u.city, "
             f"u.is_admin, u.payout_method, u.payout_details, u.email, u.email_verified, "
-            f"u.ref_code, u.ref_earnings "
+            f"u.ref_code, u.ref_earnings, u.totp_enabled "
             f"FROM {SCHEMA}.sessions s JOIN {SCHEMA}.users u ON u.id = s.user_id "
             f"WHERE s.token = %s AND s.expires_at > NOW()", (token,)
         )
@@ -85,8 +124,9 @@ def get_user_by_token(conn, token: str):
         return None
     cols = ["id","name","phone","avatar_url","rating","reviews_count","sales_count",
             "purchases_count","balance","created_at","city","is_admin","payout_method",
-            "payout_details","email","email_verified","ref_code","ref_earnings"]
+            "payout_details","email","email_verified","ref_code","ref_earnings","totp_enabled"]
     d = dict(zip(cols, row))
+    d["totp_enabled"] = bool(d["totp_enabled"])
     d["rating"] = float(d["rating"])
     d["balance"] = float(d["balance"])
     d["created_at"] = str(d["created_at"])
@@ -163,9 +203,10 @@ def handler(event: dict, context) -> dict:
         if action == "login" and method == "POST":
             login_id = (body.get("phone") or body.get("email") or "").strip().lower()
             password = body.get("password", "")
+            totp_code = (body.get("totp_code") or "").strip()
             with conn.cursor() as cur:
                 cur.execute(
-                    f"SELECT id, name, email_verified, email FROM {SCHEMA}.users "
+                    f"SELECT id, name, email_verified, email, totp_enabled, totp_secret, is_admin FROM {SCHEMA}.users "
                     f"WHERE (phone = %s OR email = %s) AND password_hash = %s",
                     (login_id, login_id, hash_pwd(password))
                 )
@@ -178,6 +219,18 @@ def handler(event: dict, context) -> dict:
                     "email_not_verified": True,
                     "email": row[3]
                 })}
+            # Двухфакторная аутентификация (обязательна, если включена)
+            if row[4]:
+                if not totp_code:
+                    return {"statusCode": 200, "headers": CORS, "body": json.dumps({
+                        "totp_required": True,
+                        "message": "Введите код из приложения Google Authenticator"
+                    })}
+                if not verify_totp(row[5], totp_code):
+                    return {"statusCode": 401, "headers": CORS, "body": json.dumps({
+                        "totp_required": True,
+                        "error": "Неверный код подтверждения"
+                    })}
             tok = make_token()
             with conn.cursor() as cur:
                 cur.execute(f"INSERT INTO {SCHEMA}.sessions (user_id, token) VALUES (%s, %s)", (row[0], tok))
@@ -252,6 +305,64 @@ def handler(event: dict, context) -> dict:
                 cur.execute(f"UPDATE {SCHEMA}.users SET password_hash = %s WHERE id = %s", (hash_pwd(new_password), user["id"]))
             conn.commit()
             return {"statusCode": 200, "headers": CORS, "body": json.dumps({"ok": True})}
+
+        # ── 2FA: НАСТРОЙКА (генерируем секрет + ссылку для QR) ────
+        if action == "totp_setup" and method == "POST":
+            if not token:
+                return {"statusCode": 401, "headers": CORS, "body": json.dumps({"error": "Не авторизован"})}
+            user = get_user_by_token(conn, token)
+            if not user:
+                return {"statusCode": 401, "headers": CORS, "body": json.dumps({"error": "Сессия истекла"})}
+            if not user.get("is_admin"):
+                return {"statusCode": 403, "headers": CORS, "body": json.dumps({"error": "2FA доступна только администратору"})}
+            secret = gen_totp_secret()
+            with conn.cursor() as cur:
+                # сохраняем секрет, но НЕ включаем 2FA, пока код не подтверждён
+                cur.execute(f"UPDATE {SCHEMA}.users SET totp_secret = %s WHERE id = %s", (secret, user["id"]))
+            conn.commit()
+            account = user.get("email") or user.get("phone") or user["name"]
+            return {"statusCode": 200, "headers": CORS, "body": json.dumps({
+                "secret": secret,
+                "otpauth_url": totp_uri(secret, account),
+            })}
+
+        # ── 2FA: ВКЛЮЧИТЬ (подтверждаем кодом) ───────────────────
+        if action == "totp_enable" and method == "POST":
+            if not token:
+                return {"statusCode": 401, "headers": CORS, "body": json.dumps({"error": "Не авторизован"})}
+            user = get_user_by_token(conn, token)
+            if not user:
+                return {"statusCode": 401, "headers": CORS, "body": json.dumps({"error": "Сессия истекла"})}
+            code = (body.get("code") or "").strip()
+            with conn.cursor() as cur:
+                cur.execute(f"SELECT totp_secret FROM {SCHEMA}.users WHERE id = %s", (user["id"],))
+                sec_row = cur.fetchone()
+            if not sec_row or not sec_row[0]:
+                return {"statusCode": 400, "headers": CORS, "body": json.dumps({"error": "Сначала запросите настройку 2FA"})}
+            if not verify_totp(sec_row[0], code):
+                return {"statusCode": 401, "headers": CORS, "body": json.dumps({"error": "Неверный код. Проверьте время на устройстве и попробуйте снова."})}
+            with conn.cursor() as cur:
+                cur.execute(f"UPDATE {SCHEMA}.users SET totp_enabled = TRUE WHERE id = %s", (user["id"],))
+            conn.commit()
+            return {"statusCode": 200, "headers": CORS, "body": json.dumps({"ok": True, "totp_enabled": True})}
+
+        # ── 2FA: ОТКЛЮЧИТЬ (нужен текущий код) ───────────────────
+        if action == "totp_disable" and method == "POST":
+            if not token:
+                return {"statusCode": 401, "headers": CORS, "body": json.dumps({"error": "Не авторизован"})}
+            user = get_user_by_token(conn, token)
+            if not user:
+                return {"statusCode": 401, "headers": CORS, "body": json.dumps({"error": "Сессия истекла"})}
+            code = (body.get("code") or "").strip()
+            with conn.cursor() as cur:
+                cur.execute(f"SELECT totp_secret, totp_enabled FROM {SCHEMA}.users WHERE id = %s", (user["id"],))
+                sec_row = cur.fetchone()
+            if sec_row and sec_row[1] and not verify_totp(sec_row[0], code):
+                return {"statusCode": 401, "headers": CORS, "body": json.dumps({"error": "Неверный код подтверждения"})}
+            with conn.cursor() as cur:
+                cur.execute(f"UPDATE {SCHEMA}.users SET totp_enabled = FALSE, totp_secret = NULL WHERE id = %s", (user["id"],))
+            conn.commit()
+            return {"statusCode": 200, "headers": CORS, "body": json.dumps({"ok": True, "totp_enabled": False})}
 
         # ── FORGOT PASSWORD (запрос сброса) ───────────────────────
         if action == "forgot_password" and method == "POST":

@@ -1,0 +1,2 @@
+ALTER TABLE t_p84229990_flower_resale_auctio.users ADD COLUMN IF NOT EXISTS totp_secret VARCHAR(64);
+ALTER TABLE t_p84229990_flower_resale_auctio.users ADD COLUMN IF NOT EXISTS totp_enabled BOOLEAN NOT NULL DEFAULT FALSE;

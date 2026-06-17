@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
+import { QRCodeSVG } from "qrcode.react";
 import Icon from "@/components/ui/icon";
 import { authApi, bouquetsApi, profileApi, uploadApi, escrowApi, oauthApi, adminApi, paymentApi, shopsApi, bannersApi, notificationsApi, coinsApi, articlesApi, shopParserApi } from "@/lib/api";
 import AdBanners from "@/components/AdBanners";
@@ -25,6 +26,7 @@ interface User {
   email?: string; email_verified?: boolean;
   ref_code?: string; ref_earnings?: number;
   coins?: number;
+  totp_enabled?: boolean;
 }
 interface Deal {
   id: number; amount: number; commission: number; escrow_status: string;
@@ -2744,6 +2746,14 @@ function ProfileScreen({ user, onLogout, onUpdate, onStartTour }: { user: User |
   const [pwdSaving, setPwdSaving] = useState(false);
   const avatarInputRef = useRef<HTMLInputElement>(null);
 
+  // Двухфакторная аутентификация (2FA)
+  const [twoFaSetup, setTwoFaSetup] = useState<{ secret: string; otpauth_url: string } | null>(null);
+  const [twoFaCode, setTwoFaCode] = useState("");
+  const [twoFaMsg, setTwoFaMsg] = useState("");
+  const [twoFaBusy, setTwoFaBusy] = useState(false);
+  const [twoFaEnabled, setTwoFaEnabled] = useState(!!user?.totp_enabled);
+  const [twoFaSecretCopied, setTwoFaSecretCopied] = useState(false);
+
   const installApp = async () => {
     const res = await promptInstall();
     if (res === "ios") setShowIosGuide(true);
@@ -2822,6 +2832,34 @@ function ProfileScreen({ user, onLogout, onUpdate, onStartTour }: { user: User |
     setPwdSaving(false);
     if (r.ok) { setPwdMsg("Пароль изменён!"); setOldPassword(""); setNewPassword(""); }
     else setPwdMsg(r.data.error || "Ошибка");
+  };
+
+  useEffect(() => { setTwoFaEnabled(!!user?.totp_enabled); }, [user]);
+
+  const startTwoFa = async () => {
+    setTwoFaBusy(true); setTwoFaMsg("");
+    const r = await authApi.totpSetup();
+    setTwoFaBusy(false);
+    if (r.ok) setTwoFaSetup({ secret: r.data.secret, otpauth_url: r.data.otpauth_url });
+    else setTwoFaMsg(r.data.error || "Ошибка");
+  };
+  const confirmTwoFa = async () => {
+    setTwoFaBusy(true); setTwoFaMsg("");
+    const r = await authApi.totpEnable(twoFaCode);
+    setTwoFaBusy(false);
+    if (r.ok && r.data.ok) { setTwoFaEnabled(true); setTwoFaSetup(null); setTwoFaCode(""); setTwoFaMsg("2FA включена!"); onUpdate?.(); }
+    else setTwoFaMsg(r.data.error || "Неверный код");
+  };
+  const disableTwoFa = async () => {
+    if (!twoFaCode) { setTwoFaMsg("Введите код для отключения"); return; }
+    setTwoFaBusy(true); setTwoFaMsg("");
+    const r = await authApi.totpDisable(twoFaCode);
+    setTwoFaBusy(false);
+    if (r.ok && r.data.ok) { setTwoFaEnabled(false); setTwoFaCode(""); setTwoFaMsg("2FA отключена"); onUpdate?.(); }
+    else setTwoFaMsg(r.data.error || "Неверный код");
+  };
+  const copyTwoFaSecret = (text: string) => {
+    navigator.clipboard.writeText(text).then(() => { setTwoFaSecretCopied(true); setTimeout(() => setTwoFaSecretCopied(false), 2000); });
   };
 
   useEffect(() => {
@@ -3148,6 +3186,90 @@ function ProfileScreen({ user, onLogout, onUpdate, onStartTour }: { user: User |
               )}
             </div>
           </div>
+
+          {/* Двухфакторная аутентификация (только админ) */}
+          {user?.is_admin && (
+            <div className="glass rounded-2xl p-4" style={{ border: "1px solid rgba(168,85,247,0.2)" }}>
+              <div className="flex items-center gap-3 mb-3">
+                <div className="w-10 h-10 rounded-2xl flex items-center justify-center flex-shrink-0"
+                  style={{ background: "rgba(168,85,247,0.15)" }}>
+                  <Icon name="ShieldCheck" size={18} style={{ color: "#a855f7" }} />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-white font-medium text-sm">Двухфакторная аутентификация</p>
+                  <p className="text-white/40 text-xs mt-0.5">Защита входа в админку через Google Authenticator</p>
+                </div>
+              </div>
+
+              {twoFaEnabled ? (
+                <div className="space-y-3">
+                  <p className="text-green-400 text-sm font-medium">✅ Включена</p>
+                  <p className="text-white/50 text-xs">Введите 6-значный код из приложения, чтобы отключить защиту:</p>
+                  <input
+                    value={twoFaCode}
+                    onChange={e => setTwoFaCode(e.target.value.replace(/\D/g, ""))}
+                    inputMode="numeric"
+                    maxLength={6}
+                    placeholder="000000"
+                    className="w-full glass rounded-xl px-4 py-3 text-center font-mono text-lg tracking-[0.4em] text-white outline-none placeholder:text-white/20" />
+                  <button
+                    onClick={disableTwoFa}
+                    disabled={twoFaBusy}
+                    className="w-full rounded-xl py-3 font-oswald text-base tracking-wide text-white disabled:opacity-40"
+                    style={{ background: "#dc2626" }}>
+                    {twoFaBusy ? "..." : "Отключить"}
+                  </button>
+                </div>
+              ) : !twoFaSetup ? (
+                <button
+                  onClick={startTwoFa}
+                  disabled={twoFaBusy}
+                  className="w-full rounded-xl py-3 font-oswald text-base tracking-wide text-white disabled:opacity-40"
+                  style={{ background: "var(--grad-main)" }}>
+                  {twoFaBusy ? "..." : "Подключить 2FA"}
+                </button>
+              ) : (
+                <div className="space-y-3">
+                  <p className="text-white/60 text-xs">1. Откройте Google Authenticator и отсканируйте QR-код или введите ключ вручную:</p>
+                  <div className="flex justify-center">
+                    <div className="bg-white p-3 rounded-xl inline-block">
+                      <QRCodeSVG value={twoFaSetup.otpauth_url} size={160} />
+                    </div>
+                  </div>
+                  <div className="glass rounded-xl px-4 py-2.5 flex items-center gap-2">
+                    <span className="flex-1 min-w-0 font-mono text-xs text-white/70 break-all select-all">{twoFaSetup.secret}</span>
+                    <button
+                      onClick={() => copyTwoFaSecret(twoFaSetup.secret)}
+                      className="text-white/50 hover:text-white transition-colors flex-shrink-0"
+                      title="Скопировать ключ">
+                      <Icon name={twoFaSecretCopied ? "Check" : "Copy"} size={15} style={twoFaSecretCopied ? { color: "#4ade80" } : undefined} />
+                    </button>
+                  </div>
+                  <p className="text-white/60 text-xs">2. Введите 6-значный код из приложения:</p>
+                  <input
+                    value={twoFaCode}
+                    onChange={e => setTwoFaCode(e.target.value.replace(/\D/g, ""))}
+                    inputMode="numeric"
+                    maxLength={6}
+                    placeholder="000000"
+                    className="w-full glass rounded-xl px-4 py-3 text-center font-mono text-lg tracking-[0.4em] text-white outline-none placeholder:text-white/20" />
+                  <button
+                    onClick={confirmTwoFa}
+                    disabled={twoFaBusy}
+                    className="w-full rounded-xl py-3 font-oswald text-base tracking-wide text-white disabled:opacity-40"
+                    style={{ background: "var(--grad-main)" }}>
+                    {twoFaBusy ? "..." : "Подтвердить"}
+                  </button>
+                </div>
+              )}
+
+              {twoFaMsg && (
+                <p className={`text-sm mt-3 ${twoFaMsg.includes("включена") || twoFaMsg.includes("!") ? "text-green-400" : "text-amber-400"}`}>
+                  {twoFaMsg}
+                </p>
+              )}
+            </div>
+          )}
 
           {/* Документы */}
           <div className="glass rounded-2xl p-4" style={{ border: "1px solid rgba(255,255,255,0.06)" }}>

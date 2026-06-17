@@ -26,6 +26,8 @@ export function AuthScreen({ onAuth }: { onAuth: (user: User, token: string) => 
   const [oauthLoading, setOauthLoading] = useState<string | null>(null);
   const [emailNotVerified, setEmailNotVerified] = useState<string | null>(null);
   const [resendSent, setResendSent] = useState(false);
+  const [totpRequired, setTotpRequired] = useState(false);
+  const [totpCode, setTotpCode] = useState("");
   const [needCity, setNeedCity] = useState(false);
   const [agreeTerms, setAgreeTerms] = useState(false);
   const [pendingToken, setPendingToken] = useState<string | null>(null);
@@ -164,10 +166,17 @@ export function AuthScreen({ onAuth }: { onAuth: (user: User, token: string) => 
       return;
     }
     const r = mode === "login"
-      ? await authApi.login(loginInput, password)
+      ? await authApi.login(loginInput, password, totpRequired ? totpCode : undefined)
       : await authApi.register(name, phone, password, city || cityInput, regEmail, regRefCode || undefined);
     setLoading(false);
+    // Требуется код 2FA (Google Authenticator)
+    if (r.ok && r.data.totp_required && !r.data.token) {
+      setTotpRequired(true);
+      if (r.data.error) setError(r.data.error);
+      return;
+    }
     if (!r.ok) {
+      if (r.data.totp_required) { setTotpRequired(true); setError(r.data.error || "Неверный код"); return; }
       if (r.data.email_not_verified) { setEmailNotVerified(r.data.email || loginInput); return; }
       setError(r.data.error || "Ошибка"); return;
     }
@@ -460,6 +469,21 @@ export function AuthScreen({ onAuth }: { onAuth: (user: User, token: string) => 
                 </div>
               )}
 
+              {mode === "login" && totpRequired && (
+                <div className="mt-3 px-4 py-3 rounded-xl"
+                  style={{ background: "rgba(168,85,247,0.1)", border: "1px solid rgba(168,85,247,0.35)" }}>
+                  <p className="text-purple-300 font-medium text-sm mb-1 flex items-center gap-1.5">
+                    <Icon name="ShieldCheck" size={15} /> Двухфакторная защита
+                  </p>
+                  <p className="text-white/50 text-xs mb-2.5">Введите 6-значный код из приложения Google Authenticator</p>
+                  <input value={totpCode}
+                    onChange={e => setTotpCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                    inputMode="numeric" autoFocus placeholder="000000"
+                    className="glass w-full rounded-xl px-4 py-3 text-white text-center text-2xl font-mono tracking-[0.4em] placeholder:text-white/20 outline-none focus:ring-1 focus:ring-purple-500"
+                    onKeyDown={e => e.key === "Enter" && submit()} />
+                </div>
+              )}
+
               <button onClick={submit} disabled={loading}
                 className="btn-gradient w-full rounded-2xl py-4 mt-4 font-oswald text-lg tracking-wide disabled:opacity-50">
                 {loading ? (
@@ -467,7 +491,7 @@ export function AuthScreen({ onAuth }: { onAuth: (user: User, token: string) => 
                     <div className="animate-spin rounded-full w-5 h-5 border-2 border-white border-t-transparent" />
                     {mode === "login" ? "Входим..." : "Создаём..."}
                   </span>
-                ) : mode === "login" ? "ВОЙТИ" : "СОЗДАТЬ АККАУНТ"}
+                ) : mode === "login" ? (totpRequired ? "ПОДТВЕРДИТЬ КОД" : "ВОЙТИ") : "СОЗДАТЬ АККАУНТ"}
               </button>
 
               {mode === "register" && (
