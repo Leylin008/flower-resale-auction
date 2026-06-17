@@ -194,8 +194,8 @@ export default function NotificationBell({ userId }: Props) {
         {open && (
           <div className="absolute right-0 top-12 w-80 z-50 animate-fade-in-up"
             style={{ maxHeight: "70vh" }}>
-            <div className="glass-strong rounded-2xl overflow-hidden"
-              style={{ border: "1px solid rgba(168,85,247,0.25)", boxShadow: "0 16px 48px rgba(0,0,0,0.5)" }}>
+            <div className="rounded-2xl overflow-hidden"
+              style={{ background: "#15101f", border: "1px solid rgba(168,85,247,0.35)", boxShadow: "0 16px 48px rgba(0,0,0,0.7)", backdropFilter: "blur(20px)" }}>
               <div className="flex items-center justify-between px-4 py-3"
                 style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
                 <p className="text-white font-semibold text-sm">Уведомления</p>
