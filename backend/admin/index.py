@@ -1,7 +1,60 @@
-"""Админ-панель: заявки на вывод средств, подтверждение/отклонение, статистика комиссии"""
+"""Админ-панель: заявки на вывод средств, автовыплаты через ЮKassa, статистика комиссии"""
 import json
 import os
+import uuid
+import urllib.request
+import urllib.error
+import base64
 import psycopg2
+
+
+def yookassa_payout(amount: float, method: str, details: str, bank_name: str = "") -> dict:
+    """Отправить выплату через ЮKassa Payouts API. Возвращает {"ok": True/False, "id": ..., "error": ...}"""
+    shop_id = os.environ.get("YOOKASSA_PAYOUT_SHOP_ID") or os.environ.get("YOOKASSA_SHOP_ID", "")
+    secret = os.environ.get("YOOKASSA_PAYOUT_SECRET_KEY", "")
+    if not shop_id or not secret:
+        return {"ok": False, "error": "Не настроены ключи ЮKassa Выплаты"}
+
+    # Формируем тип выплаты
+    if method == "sbp":
+        payout_destination = {
+            "type": "sbp",
+            "phone": details.strip().replace(" ", "").replace("-", ""),
+            "bank_id": bank_name or "",
+        }
+    elif method == "card":
+        payout_destination = {
+            "type": "bank_card",
+            "card": {"number": details.strip().replace(" ", "")},
+        }
+    else:
+        return {"ok": False, "error": f"Неподдерживаемый метод выплаты: {method}"}
+
+    payload = json.dumps({
+        "amount": {"value": f"{amount:.2f}", "currency": "RUB"},
+        "payout_destination_data": payout_destination,
+        "description": "Выплата продавцу FlowerFlip",
+        "metadata": {"platform": "flowerflip"},
+    }).encode("utf-8")
+
+    creds = base64.b64encode(f"{shop_id}:{secret}".encode()).decode()
+    req = urllib.request.Request(
+        "https://payouts.yookassa.ru/v3/payouts",
+        data=payload,
+        headers={
+            "Authorization": f"Basic {creds}",
+            "Idempotence-Key": str(uuid.uuid4()),
+            "Content-Type": "application/json",
+        },
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            data = json.loads(resp.read().decode())
+            return {"ok": True, "id": data.get("id"), "status": data.get("status")}
+    except urllib.error.HTTPError as e:
+        err_body = json.loads(e.read().decode()) if e.fp else {}
+        return {"ok": False, "error": err_body.get("description", str(e))}
 
 SCHEMA = os.environ.get("MAIN_DB_SCHEMA", "t_p84229990_flower_resale_auctio")
 CORS = {
@@ -67,7 +120,7 @@ def handler(event: dict, context) -> dict:
             with conn.cursor() as cur:
                 cur.execute(
                     f"SELECT w.id, w.amount, w.method, w.details, w.status, w.admin_comment, "
-                    f"w.created_at, w.processed_at, u.id, u.name, u.phone "
+                    f"w.created_at, w.processed_at, u.id, u.name, u.phone, w.bank_name, w.payout_id "
                     f"FROM {SCHEMA}.withdrawals w "
                     f"JOIN {SCHEMA}.users u ON u.id = w.user_id "
                     f"{where} ORDER BY w.created_at DESC LIMIT 100",
@@ -77,27 +130,51 @@ def handler(event: dict, context) -> dict:
             items = [{"id": r[0], "amount": float(r[1]), "method": r[2], "details": r[3],
                       "status": r[4], "admin_comment": r[5],
                       "created_at": str(r[6]), "processed_at": str(r[7]) if r[7] else None,
-                      "user_id": r[8], "user_name": r[9], "user_phone": r[10]} for r in rows]
+                      "user_id": r[8], "user_name": r[9], "user_phone": r[10],
+                      "bank_name": r[11], "payout_id": r[12]} for r in rows]
             return {"statusCode": 200, "headers": CORS, "body": json.dumps({"withdrawals": items})}
 
-        # Подтвердить вывод (деньги уже списаны при создании заявки — просто помечаем выплаченным)
+        # Подтвердить вывод — автовыплата через ЮKassa Payouts API
         if action == "approve" and method == "POST":
             wid = int(body.get("withdrawal_id", 0))
             comment = body.get("comment", "")
             with conn.cursor() as cur:
-                cur.execute(f"SELECT status FROM {SCHEMA}.withdrawals WHERE id = %s", (wid,))
+                cur.execute(
+                    f"SELECT w.status, w.amount, w.method, w.details, w.bank_name, u.name "
+                    f"FROM {SCHEMA}.withdrawals w JOIN {SCHEMA}.users u ON u.id = w.user_id "
+                    f"WHERE w.id = %s", (wid,)
+                )
                 row = cur.fetchone()
-                if not row:
-                    return {"statusCode": 404, "headers": CORS, "body": json.dumps({"error": "Заявка не найдена"})}
-                if row[0] != "pending":
-                    return {"statusCode": 400, "headers": CORS, "body": json.dumps({"error": "Заявка уже обработана"})}
+            if not row:
+                return {"statusCode": 404, "headers": CORS, "body": json.dumps({"error": "Заявка не найдена"})}
+            if row[0] != "pending":
+                return {"statusCode": 400, "headers": CORS, "body": json.dumps({"error": "Заявка уже обработана"})}
+
+            w_status, w_amount, w_method, w_details, w_bank, u_name = row
+
+            # Отправляем выплату через ЮKassa
+            result = yookassa_payout(float(w_amount), w_method, w_details, w_bank or "")
+
+            if not result["ok"]:
+                return {"statusCode": 502, "headers": CORS, "body": json.dumps({
+                    "error": f"Ошибка ЮKassa: {result['error']}"
+                })}
+
+            # Помечаем как выплаченное, сохраняем payout_id из ЮKassa
+            with conn.cursor() as cur:
                 cur.execute(
                     f"UPDATE {SCHEMA}.withdrawals SET status = 'paid', admin_comment = %s, "
-                    f"processed_by = %s, processed_at = NOW() WHERE id = %s",
-                    (comment, admin["id"], wid)
+                    f"processed_by = %s, processed_at = NOW(), payout_id = %s, payout_status = %s "
+                    f"WHERE id = %s",
+                    (comment or f"Автовыплата ЮKassa #{result.get('id','')}", admin["id"],
+                     result.get("id"), result.get("status"), wid)
                 )
             conn.commit()
-            return {"statusCode": 200, "headers": CORS, "body": json.dumps({"ok": True, "message": "Вывод подтверждён"})}
+            return {"statusCode": 200, "headers": CORS, "body": json.dumps({
+                "ok": True,
+                "message": f"Выплата {float(w_amount):.0f} ₽ отправлена через ЮKassa",
+                "payout_id": result.get("id"),
+            })}
 
         # Отклонить вывод (возвращаем деньги на баланс пользователя)
         if action == "reject" and method == "POST":

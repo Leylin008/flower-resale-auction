@@ -195,10 +195,10 @@ export const profileApi = {
   },
   sendMessage: (receiver_id: number, text: string, bouquet_id?: number) =>
     req(`${URLS.profile}/?action=send_message`, { method: "POST", body: JSON.stringify({ action: "send_message", receiver_id, text, bouquet_id }) }),
-  withdraw: (amount: number, method?: string, details?: string) =>
-    req(`${URLS.profile}/?action=withdraw`, { method: "POST", body: JSON.stringify({ action: "withdraw", amount, method, details }) }),
-  savePayout: (method: string, details: string) =>
-    req(`${URLS.profile}/?action=save_payout`, { method: "POST", body: JSON.stringify({ action: "save_payout", method, details }) }),
+  withdraw: (amount: number, method?: string, details?: string, bank_name?: string) =>
+    req(`${URLS.profile}/?action=withdraw`, { method: "POST", body: JSON.stringify({ action: "withdraw", amount, method, details, bank_name }) }),
+  savePayout: (method: string, details: string, bank_name?: string) =>
+    req(`${URLS.profile}/?action=save_payout`, { method: "POST", body: JSON.stringify({ action: "save_payout", method, details, bank_name }) }),
   withdrawals: () => req(`${URLS.profile}/?action=withdrawals`),
   addReview: (target_id: number, stars: number, text: string, order_id?: number) =>
     req(`${URLS.profile}/?action=add_review`, { method: "POST", body: JSON.stringify({ action: "add_review", target_id, stars, text, order_id }) }),

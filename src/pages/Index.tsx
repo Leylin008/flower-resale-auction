@@ -2752,6 +2752,7 @@ function ProfileScreen({ user, onLogout, onUpdate, onStartTour }: { user: User |
   const [withdrawMsg, setWithdrawMsg] = useState("");
   const [payoutMethod, setPayoutMethod] = useState(user?.payout_method || "card");
   const [payoutDetails, setPayoutDetails] = useState(user?.payout_details || "");
+  const [payoutBankName, setPayoutBankName] = useState("");
   const [payoutSaved, setPayoutSaved] = useState("");
   const [withdrawals, setWithdrawals] = useState<{ id: number; amount: number; method: string; details: string; status: string; admin_comment?: string; created_at: string }[]>([]);
   const { isIos, isStandalone, canInstall, promptInstall } = usePwaInstall();
@@ -2918,7 +2919,8 @@ function ProfileScreen({ user, onLogout, onUpdate, onStartTour }: { user: User |
 
   const savePayout = async () => {
     if (!payoutDetails.trim()) { setPayoutSaved("Укажите реквизиты"); return; }
-    const r = await profileApi.savePayout(payoutMethod, payoutDetails.trim());
+    if (payoutMethod === "card" && !payoutBankName.trim()) { setPayoutSaved("Укажите банк"); return; }
+    const r = await profileApi.savePayout(payoutMethod, payoutDetails.trim(), payoutBankName.trim());
     setPayoutSaved(r.ok ? "Реквизиты сохранены" : (r.data.error || "Ошибка"));
   };
 
@@ -2926,7 +2928,8 @@ function ProfileScreen({ user, onLogout, onUpdate, onStartTour }: { user: User |
     if (maintenance) { setWithdrawMsg("Платформа на этапе доработки — вывод временно недоступен"); return; }
     const amount = parseFloat(withdrawAmount);
     if (!amount) { setWithdrawMsg("Укажите сумму"); return; }
-    const r = await profileApi.withdraw(amount, payoutMethod, payoutDetails.trim());
+    if (payoutMethod === "card" && !payoutBankName.trim()) { setWithdrawMsg("Укажите банк получателя"); return; }
+    const r = await profileApi.withdraw(amount, payoutMethod, payoutDetails.trim(), payoutBankName.trim());
     setWithdrawMsg(r.ok ? r.data.message : r.data.error);
     if (r.ok) { setWithdrawAmount(""); loadWithdrawals(); }
   };
@@ -3031,9 +3034,17 @@ function ProfileScreen({ user, onLogout, onUpdate, onStartTour }: { user: User |
               <Icon name="CreditCard" size={14} className="text-white/30 flex-shrink-0" />
               <input value={payoutDetails} onChange={e => { setPayoutDetails(e.target.value); setPayoutSaved(""); }}
                 className="flex-1 bg-transparent text-white outline-none text-sm placeholder:text-white/30"
-                placeholder={payoutMethod === "sbp" ? "Номер телефона" : payoutMethod === "wallet" ? "Номер кошелька" : "Номер карты"} />
-              <button onClick={savePayout} className="text-pink-400 text-xs font-medium hover:text-pink-300 flex-shrink-0">Сохранить</button>
+                placeholder={payoutMethod === "sbp" ? "Номер телефона (+7...)" : payoutMethod === "wallet" ? "Номер кошелька" : "Номер карты (16 цифр)"} />
             </div>
+            {payoutMethod === "card" && (
+              <div className="glass rounded-xl px-4 py-2.5 flex items-center gap-2 mb-2">
+                <Icon name="Building2" size={14} className="text-white/30 flex-shrink-0" />
+                <input value={payoutBankName} onChange={e => { setPayoutBankName(e.target.value); setPayoutSaved(""); }}
+                  className="flex-1 bg-transparent text-white outline-none text-sm placeholder:text-white/30"
+                  placeholder="Банк получателя (Сбер, Тинькофф, ВТБ...)" />
+              </div>
+            )}
+            <button onClick={savePayout} className="w-full glass rounded-xl py-2 text-pink-400 text-xs font-medium mb-1">Сохранить реквизиты</button>
             {payoutSaved && <p className={`text-xs mb-2 ${payoutSaved.includes("сохранены") ? "text-green-400" : "text-red-400"}`}>{payoutSaved}</p>}
 
             {/* Сумма вывода */}
@@ -3850,6 +3861,7 @@ function ProfileScreen({ user, onLogout, onUpdate, onStartTour }: { user: User |
 interface AdminWithdrawal {
   id: number; amount: number; method: string; details: string; status: string;
   admin_comment?: string; created_at: string; user_id: number; user_name: string; user_phone: string;
+  bank_name?: string; payout_id?: string;
 }
 interface AdminStats {
   total_commission: number; pending_count: number; pending_amount: number;
@@ -4239,16 +4251,34 @@ function AdminScreen({ user }: { user: User | null }) {
                     <span className="gradient-text font-oswald text-xl font-bold">{formatPrice(w.amount)}</span>
                     <span className="text-white/50 text-sm">{methodLabel[w.method] || w.method}</span>
                   </div>
-                  <div className="glass rounded-xl px-3 py-2 mb-3 flex items-center gap-2">
-                    <Icon name="CreditCard" size={14} className="text-white/30" />
-                    <span className="text-white/70 text-sm font-mono">{w.details}</span>
+                  <div className="glass rounded-xl px-3 py-2 mb-2 space-y-1">
+                    <div className="flex items-center gap-2">
+                      <Icon name="CreditCard" size={13} className="text-white/30 flex-shrink-0" />
+                      <span className="text-white/70 text-sm font-mono">{w.details}</span>
+                    </div>
+                    {w.bank_name && (
+                      <div className="flex items-center gap-2">
+                        <Icon name="Building2" size={13} className="text-white/30 flex-shrink-0" />
+                        <span className="text-white/60 text-sm">{w.bank_name}</span>
+                      </div>
+                    )}
+                    {w.payout_id && (
+                      <div className="flex items-center gap-2">
+                        <Icon name="CheckCircle2" size={13} className="text-green-400 flex-shrink-0" />
+                        <span className="text-white/40 text-xs">ЮKassa: {w.payout_id}</span>
+                      </div>
+                    )}
                   </div>
                   {w.status === "pending" && (
-                    <div className="flex gap-2">
+                    <div className="flex gap-2 mt-2">
                       <button onClick={() => act(w.id, "approve")} disabled={busy === w.id}
-                        className="flex-1 rounded-xl py-2.5 text-sm font-medium text-white" style={{ background: "rgba(34,197,94,0.8)" }}>Выплачено</button>
+                        className="flex-1 rounded-xl py-2.5 text-sm font-medium text-white disabled:opacity-50"
+                        style={{ background: "rgba(34,197,94,0.8)" }}>
+                        {busy === w.id ? "Отправка..." : "Выплатить через ЮKassa"}
+                      </button>
                       <button onClick={() => act(w.id, "reject")} disabled={busy === w.id}
-                        className="flex-1 rounded-xl py-2.5 text-sm font-medium text-white" style={{ background: "rgba(239,68,68,0.8)" }}>Отклонить</button>
+                        className="flex-1 rounded-xl py-2.5 text-sm font-medium text-white disabled:opacity-50"
+                        style={{ background: "rgba(239,68,68,0.8)" }}>Отклонить</button>
                     </div>
                   )}
                   <p className="text-white/30 text-xs mt-2">{new Date(w.created_at).toLocaleString("ru-RU")}</p>

@@ -247,6 +247,7 @@ def handler(event: dict, context) -> dict:
                 return {"statusCode": 401, "headers": CORS, "body": json.dumps({"error": "Не авторизован"})}
             pm = body.get("method", "card")
             details = body.get("details", "").strip()
+            bank_name = body.get("bank_name", "").strip()
             if pm not in ("card", "sbp", "wallet"):
                 return {"statusCode": 400, "headers": CORS, "body": json.dumps({"error": "Неверный способ"})}
             if not details:
@@ -255,7 +256,7 @@ def handler(event: dict, context) -> dict:
                 cur.execute(f"UPDATE {SCHEMA}.users SET payout_method = %s, payout_details = %s WHERE id = %s",
                             (pm, details, user["id"]))
             conn.commit()
-            return {"statusCode": 200, "headers": CORS, "body": json.dumps({"ok": True, "method": pm, "details": details})}
+            return {"statusCode": 200, "headers": CORS, "body": json.dumps({"ok": True, "method": pm, "details": details, "bank_name": bank_name})}
 
         # Создать заявку на вывод (деньги замораживаются — списываются с баланса)
         if action == "withdraw" and method == "POST":
@@ -266,25 +267,28 @@ def handler(event: dict, context) -> dict:
             amount = float(body.get("amount", 0))
             pm = body.get("method") or user["payout_method"] or "card"
             details = body.get("details") or user["payout_details"]
+            bank_name = (body.get("bank_name") or "").strip()
             if amount <= 0:
                 return {"statusCode": 400, "headers": CORS, "body": json.dumps({"error": "Укажите сумму"})}
             if amount > user["balance"]:
                 return {"statusCode": 400, "headers": CORS, "body": json.dumps({"error": "Недостаточно средств"})}
             if not details:
                 return {"statusCode": 400, "headers": CORS, "body": json.dumps({"error": "Сначала укажите реквизиты для вывода"})}
+            if pm == "card" and not bank_name:
+                return {"statusCode": 400, "headers": CORS, "body": json.dumps({"error": "Укажите банк получателя"})}
             with conn.cursor() as cur:
                 # Замораживаем сумму (списываем с баланса до решения админа)
                 cur.execute(f"UPDATE {SCHEMA}.users SET balance = balance - %s WHERE id = %s", (amount, user["id"]))
                 cur.execute(
-                    f"INSERT INTO {SCHEMA}.withdrawals (user_id, amount, method, details, status) "
-                    f"VALUES (%s, %s, %s, %s, 'pending') RETURNING id",
-                    (user["id"], amount, pm, details)
+                    f"INSERT INTO {SCHEMA}.withdrawals (user_id, amount, method, details, status, bank_name) "
+                    f"VALUES (%s, %s, %s, %s, 'pending', %s) RETURNING id",
+                    (user["id"], amount, pm, details, bank_name or None)
                 )
                 wid = cur.fetchone()[0]
             conn.commit()
             return {"statusCode": 200, "headers": CORS, "body": json.dumps({
                 "ok": True, "withdrawal_id": wid,
-                "message": f"Заявка на вывод {amount:.0f} ₽ принята. Ожидайте обработки администратором."
+                "message": f"Заявка на вывод {amount:.0f} ₽ принята. Выплата будет произведена автоматически."
             })}
 
         # История выводов пользователя

@@ -1,0 +1,4 @@
+ALTER TABLE t_p84229990_flower_resale_auctio.withdrawals 
+ADD COLUMN IF NOT EXISTS bank_name VARCHAR(100),
+ADD COLUMN IF NOT EXISTS payout_id VARCHAR(255),
+ADD COLUMN IF NOT EXISTS payout_status VARCHAR(50);
