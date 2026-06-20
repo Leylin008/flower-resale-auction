@@ -115,7 +115,8 @@ def get_user_by_token(conn, token: str):
             f"SELECT u.id, u.name, u.phone, u.avatar_url, u.rating, u.reviews_count, "
             f"u.sales_count, u.purchases_count, u.balance, u.created_at, u.city, "
             f"u.is_admin, u.payout_method, u.payout_details, u.email, u.email_verified, "
-            f"u.ref_code, u.ref_earnings, u.totp_enabled "
+            f"u.ref_code, u.ref_earnings, u.totp_enabled, "
+            f"(SELECT COUNT(*) FROM {SCHEMA}.users r WHERE r.referred_by = u.id) AS ref_count "
             f"FROM {SCHEMA}.sessions s JOIN {SCHEMA}.users u ON u.id = s.user_id "
             f"WHERE s.token = %s AND s.expires_at > NOW()", (token,)
         )
@@ -124,7 +125,7 @@ def get_user_by_token(conn, token: str):
         return None
     cols = ["id","name","phone","avatar_url","rating","reviews_count","sales_count",
             "purchases_count","balance","created_at","city","is_admin","payout_method",
-            "payout_details","email","email_verified","ref_code","ref_earnings","totp_enabled"]
+            "payout_details","email","email_verified","ref_code","ref_earnings","totp_enabled","ref_count"]
     d = dict(zip(cols, row))
     d["totp_enabled"] = bool(d["totp_enabled"])
     d["rating"] = float(d["rating"])
@@ -133,6 +134,7 @@ def get_user_by_token(conn, token: str):
     d["is_admin"] = bool(d["is_admin"])
     d["email_verified"] = bool(d["email_verified"])
     d["ref_earnings"] = float(d["ref_earnings"] or 0)
+    d["ref_count"] = int(d["ref_count"] or 0)
     return d
 
 def handler(event: dict, context) -> dict:

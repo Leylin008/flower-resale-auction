@@ -3629,14 +3629,26 @@ function ProfileScreen({ user, onLogout, onUpdate, onStartTour }: { user: User |
 
       {tab === "referral" && (
         <div className="space-y-4 animate-fade-in-up">
-          {/* Заработок */}
-          <div className="rounded-2xl p-5 relative overflow-hidden"
-            style={{ background: "linear-gradient(135deg, rgba(168,85,247,0.2), rgba(255,61,139,0.15))", border: "1px solid rgba(168,85,247,0.3)" }}>
-            <p className="text-white/50 text-xs font-medium uppercase tracking-wide mb-1">Реферальный заработок</p>
-            <p className="font-oswald text-3xl font-bold" style={{ color: "#a855f7" }}>
-              {formatPrice(user.ref_earnings || 0)}
-            </p>
-            <p className="text-white/40 text-xs mt-1">Зачисляется на баланс автоматически</p>
+          {/* Заработок + счётчик рефералов */}
+          <div className="grid grid-cols-2 gap-3">
+            <div className="rounded-2xl p-5 relative overflow-hidden col-span-2"
+              style={{ background: "linear-gradient(135deg, rgba(168,85,247,0.2), rgba(255,61,139,0.15))", border: "1px solid rgba(168,85,247,0.3)" }}>
+              <p className="text-white/50 text-xs font-medium uppercase tracking-wide mb-1">Реферальный заработок</p>
+              <p className="font-oswald text-3xl font-bold" style={{ color: "#a855f7" }}>
+                {formatPrice(user.ref_earnings || 0)}
+              </p>
+              <p className="text-white/40 text-xs mt-1">Зачисляется на баланс автоматически</p>
+            </div>
+            <div className="glass rounded-2xl p-4 flex flex-col items-center justify-center text-center">
+              <p className="font-oswald text-4xl font-bold" style={{ color: "#ff3d8b" }}>
+                {user.ref_count || 0}
+              </p>
+              <p className="text-white/50 text-xs mt-1">Зарегистрировалось<br/>по вашей ссылке</p>
+            </div>
+            <div className="glass rounded-2xl p-4 flex flex-col items-center justify-center text-center">
+              <p className="font-oswald text-2xl font-bold" style={{ color: "#a855f7" }}>4.5%</p>
+              <p className="text-white/50 text-xs mt-1">С каждой покупки<br/>вашего реферала</p>
+            </div>
           </div>
 
           {/* Реферальный код */}
