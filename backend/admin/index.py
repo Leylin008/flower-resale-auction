@@ -9,24 +9,23 @@ import psycopg2
 
 
 def yookassa_payout(amount: float, method: str, details: str, bank_name: str = "") -> dict:
-    """Отправить выплату через ЮKassa Payouts API. Возвращает {"ok": True/False, "id": ..., "error": ...}"""
-    shop_id = os.environ.get("YOOKASSA_PAYOUT_SHOP_ID") or os.environ.get("YOOKASSA_SHOP_ID", "")
-    secret = os.environ.get("YOOKASSA_PAYOUT_SECRET_KEY", "")
-    if not shop_id or not secret:
-        return {"ok": False, "error": "Не настроены ключи ЮKassa Выплаты"}
+    """Отправить выплату через ЮKassa Payouts API (агентская схема). Возвращает {"ok": True/False, "id": ..., "error": ...}"""
+    agent_id = os.environ.get("YOOKASSA_PAYOUT_SHOP_ID", "").strip()
+    secret = os.environ.get("YOOKASSA_PAYOUT_SECRET_KEY", "").strip()
+    if not agent_id or not secret:
+        return {"ok": False, "error": "Не настроены ключи ЮKassa Выплаты (YOOKASSA_PAYOUT_SHOP_ID / YOOKASSA_PAYOUT_SECRET_KEY)"}
 
-    # Формируем тип выплаты
+    # Формируем назначение выплаты
     if method == "sbp":
-        payout_destination = {
-            "type": "sbp",
-            "phone": details.strip().replace(" ", "").replace("-", ""),
-            "bank_id": bank_name or "",
-        }
+        phone = details.strip().replace(" ", "").replace("-", "")
+        if not phone.startswith("+"):
+            phone = "+7" + phone.lstrip("7").lstrip("8")
+        payout_destination = {"type": "sbp", "phone": phone}
+        if bank_name:
+            payout_destination["bank_id"] = bank_name
     elif method == "card":
-        payout_destination = {
-            "type": "bank_card",
-            "card": {"number": details.strip().replace(" ", "")},
-        }
+        card_number = details.strip().replace(" ", "")
+        payout_destination = {"type": "bank_card", "card": {"number": card_number}}
     else:
         return {"ok": False, "error": f"Неподдерживаемый метод выплаты: {method}"}
 
@@ -37,8 +36,9 @@ def yookassa_payout(amount: float, method: str, details: str, bank_name: str = "
         "metadata": {"platform": "flowerflip"},
     }).encode("utf-8")
 
-    creds = base64.b64encode(f"{shop_id}:{secret}".encode()).decode()
-    req = urllib.request.Request(
+    # Авторизация: AgentID:SecretKey в Base64
+    creds = base64.b64encode(f"{agent_id}:{secret}".encode()).decode()
+    http_req = urllib.request.Request(
         "https://payouts.yookassa.ru/v3/payouts",
         data=payload,
         headers={
@@ -49,12 +49,18 @@ def yookassa_payout(amount: float, method: str, details: str, bank_name: str = "
         method="POST",
     )
     try:
-        with urllib.request.urlopen(req, timeout=15) as resp:
+        with urllib.request.urlopen(http_req, timeout=20) as resp:
             data = json.loads(resp.read().decode())
             return {"ok": True, "id": data.get("id"), "status": data.get("status")}
     except urllib.error.HTTPError as e:
-        err_body = json.loads(e.read().decode()) if e.fp else {}
-        return {"ok": False, "error": err_body.get("description", str(e))}
+        try:
+            err_body = json.loads(e.read().decode())
+            err_msg = err_body.get("description") or err_body.get("message") or str(err_body)
+        except Exception:
+            err_msg = f"HTTP {e.code}"
+        return {"ok": False, "error": err_msg}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
 
 SCHEMA = os.environ.get("MAIN_DB_SCHEMA", "t_p84229990_flower_resale_auctio")
 CORS = {
