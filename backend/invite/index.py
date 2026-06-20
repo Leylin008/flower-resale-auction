@@ -92,6 +92,10 @@ def handler(event: dict, context) -> dict:
 
     qs = event.get("queryStringParameters") or {}
     code = (qs.get("code") or "").strip().upper()
+    # Код может прийти из пути: i.flowerflip.ru/КОД
+    if not code:
+        path = (event.get("path") or event.get("rawPath") or "").strip("/")
+        code = path.split("/")[-1].strip().upper() if path else ""
     headers = event.get("headers") or {}
     user_agent = headers.get("User-Agent") or headers.get("user-agent") or ""
 
