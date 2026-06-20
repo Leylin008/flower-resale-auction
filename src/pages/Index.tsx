@@ -4161,18 +4161,45 @@ function AdminScreen({ user }: { user: User | null }) {
       </a>
 
       {stats && (
-        <div className="grid grid-cols-2 gap-2 mb-4">
-          {[
-            { label: "Комиссия", val: formatPrice(stats.total_commission), color: "gradient-text" },
-            { label: `Выводов (${stats.pending_count})`, val: formatPrice(stats.pending_amount), color: "text-yellow-400" },
-            { label: "Пользователей", val: stats.users_count, color: "text-white" },
-            { label: "Сделок", val: stats.completed_orders, color: "text-white" },
-          ].map(s => (
-            <div key={s.label} className="glass rounded-2xl p-3">
-              <p className={`font-oswald text-xl font-bold ${s.color}`}>{s.val}</p>
-              <p className="text-white/40 text-xs mt-0.5">{s.label}</p>
+        <div className="space-y-2 mb-4">
+          {/* Комиссия платформы — выделенная карточка с кнопкой вывода */}
+          <div className="rounded-2xl p-4 flex items-center gap-4"
+            style={{ background: "linear-gradient(135deg, rgba(255,61,139,0.2), rgba(168,85,247,0.15))", border: "1px solid rgba(255,61,139,0.3)" }}>
+            <div className="flex-1 min-w-0">
+              <p className="text-white/50 text-xs font-medium uppercase tracking-wide mb-0.5">Собранная комиссия сайта</p>
+              <p className="font-oswald text-3xl font-bold gradient-text">{formatPrice(stats.total_commission)}</p>
+              <p className="text-white/30 text-xs mt-0.5">Накоплено с завершённых сделок</p>
             </div>
-          ))}
+            <button
+              disabled={stats.total_commission <= 0}
+              onClick={async () => {
+                if (!confirm(`Вывести ${formatPrice(stats.total_commission)} на ваш баланс?`)) return;
+                const r = await adminApi.withdrawPlatform();
+                if (r.ok) {
+                  setMsg(`✅ ${formatPrice(r.data.amount)} зачислено на ваш баланс`);
+                  load();
+                } else {
+                  setMsg(r.data.error || "Ошибка вывода");
+                }
+              }}
+              className="flex-shrink-0 rounded-xl px-4 py-2.5 text-sm font-medium transition-all disabled:opacity-30"
+              style={{ background: "var(--grad-main)", color: "#fff" }}>
+              Вывести
+            </button>
+          </div>
+          {/* Остальная статистика */}
+          <div className="grid grid-cols-3 gap-2">
+            {[
+              { label: `Выводов (${stats.pending_count})`, val: formatPrice(stats.pending_amount), color: "text-yellow-400" },
+              { label: "Пользователей", val: stats.users_count, color: "text-white" },
+              { label: "Сделок", val: stats.completed_orders, color: "text-white" },
+            ].map(s => (
+              <div key={s.label} className="glass rounded-2xl p-3">
+                <p className={`font-oswald text-lg font-bold ${s.color}`}>{s.val}</p>
+                <p className="text-white/40 text-xs mt-0.5">{s.label}</p>
+              </div>
+            ))}
+          </div>
         </div>
       )}
 

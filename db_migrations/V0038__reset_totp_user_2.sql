@@ -1,0 +1,1 @@
+UPDATE t_p84229990_flower_resale_auctio.users SET totp_enabled = false, totp_secret = NULL WHERE id = 2;

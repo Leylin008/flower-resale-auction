@@ -237,6 +237,8 @@ export const adminApi = {
   deleteUser: (user_id: number) =>
     req(`${URLS.admin}/?action=delete_user`, { method: "POST", body: JSON.stringify({ action: "delete_user", user_id }) }),
   referralPool: () => req(`${URLS.admin}/?action=referral_pool`),
+  withdrawPlatform: () =>
+    req(`${URLS.admin}/?action=withdraw_platform`, { method: "POST", body: JSON.stringify({ action: "withdraw_platform" }) }),
 };
 
 // COINS «Лепестки»

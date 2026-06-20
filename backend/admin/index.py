@@ -144,6 +144,22 @@ def handler(event: dict, context) -> dict:
                 "completed_orders": completed_orders,
             })}
 
+        # Вывод комиссии платформы на баланс администратора
+        if action == "withdraw_platform":
+            with conn.cursor() as cur:
+                cur.execute(f"SELECT COALESCE(SUM(amount), 0) FROM {SCHEMA}.platform_earnings")
+                total = float(cur.fetchone()[0])
+                if total <= 0:
+                    return {"statusCode": 400, "headers": CORS, "body": json.dumps({"error": "Нет средств для вывода"})}
+                # Зачисляем комиссию на баланс администратора и обнуляем platform_earnings
+                cur.execute(
+                    f"UPDATE {SCHEMA}.users SET balance = balance + %s WHERE id = %s",
+                    (total, admin["id"])
+                )
+                cur.execute(f"DELETE FROM {SCHEMA}.platform_earnings")
+            conn.commit()
+            return {"statusCode": 200, "headers": CORS, "body": json.dumps({"ok": True, "amount": total})}
+
         # GET subscriptions — список подписок магазинов
         if action == "subscriptions":
             with conn.cursor() as cur:
