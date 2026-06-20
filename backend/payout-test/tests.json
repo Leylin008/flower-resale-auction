@@ -1,1 +1,1 @@
-{"tests": [{"name": "Test payout to YooKassa", "method": "GET", "path": "/", "expectedStatus": 200, "bodyMatcher": "partial"}]}
+{"tests": [{"name": "Test payout debug v4", "method": "GET", "path": "/", "expectedStatus": 200, "bodyMatcher": "partial"}]}

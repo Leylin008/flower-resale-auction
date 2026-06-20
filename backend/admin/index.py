@@ -39,7 +39,7 @@ def yookassa_payout(amount: float, method: str, details: str, bank_name: str = "
     # Авторизация: AgentID:SecretKey в Base64
     creds = base64.b64encode(f"{agent_id}:{secret}".encode()).decode()
     http_req = urllib.request.Request(
-        "https://payouts.yookassa.ru/v3/payouts",
+        "https://api.yookassa.ru/v3/payouts",
         data=payload,
         headers={
             "Authorization": f"Basic {creds}",
