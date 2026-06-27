@@ -2576,6 +2576,10 @@ function CoinsModal({ user, onClose, onUpdated }: { user: User | null; onClose: 
   const [vkBonus, setVkBonus] = useState(40);
   const [vkMsg, setVkMsg] = useState("");
   const [vkVisited, setVkVisited] = useState(false);
+  const [tgBonusGiven, setTgBonusGiven] = useState(false);
+  const [tgBonus, setTgBonus] = useState(40);
+  const [tgMsg, setTgMsg] = useState("");
+  const [tgVisited, setTgVisited] = useState(false);
 
   const refreshBalance = useCallback(() => {
     coinsApi.balance().then(r => {
@@ -2583,6 +2587,8 @@ function CoinsModal({ user, onClose, onUpdated }: { user: User | null; onClose: 
         setCoins(r.data.coins);
         setVkBonusGiven(!!r.data.vk_bonus_given);
         if (r.data.vk_bonus) setVkBonus(r.data.vk_bonus);
+        setTgBonusGiven(!!r.data.tg_bonus_given);
+        if (r.data.tg_bonus) setTgBonus(r.data.tg_bonus);
       }
     });
   }, []);
@@ -2599,6 +2605,21 @@ function CoinsModal({ user, onClose, onUpdated }: { user: User | null; onClose: 
       setVkMsg("Бонус за подписку уже получен");
     } else {
       setVkMsg(r.data.error || "Не удалось начислить бонус");
+    }
+  };
+
+  const claimTg = async () => {
+    const r = await coinsApi.tgSubscribe();
+    if (r.ok && r.data.ok) {
+      setCoins(r.data.coins);
+      setTgBonusGiven(true);
+      setTgMsg(`Начислено ${r.data.earned} 🌸 за подписку!`);
+      onUpdated();
+    } else if (r.ok && r.data.already) {
+      setTgBonusGiven(true);
+      setTgMsg("Бонус за подписку уже получен");
+    } else {
+      setTgMsg(r.data.error || "Не удалось начислить бонус");
     }
   };
 
@@ -2686,6 +2707,42 @@ function CoinsModal({ user, onClose, onUpdated }: { user: User | null; onClose: 
           )}
           {vkMsg && (
             <p className="text-xs text-center mt-2" style={{ color: vkMsg.includes("Начислено") ? "#4ade80" : "#fbbf24" }}>{vkMsg}</p>
+          )}
+        </div>
+
+        {/* Telegram-канал: бонус за подписку */}
+        <div className="rounded-2xl p-4 mb-4" style={{ background: "rgba(34,158,217,0.12)", border: "1px solid rgba(34,158,217,0.35)" }}>
+          <div className="flex items-center gap-2 mb-2">
+            <div className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: "#229ED9" }}>
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="white"><path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm5.894 8.221-1.97 9.28c-.145.658-.537.818-1.084.508l-3-2.21-1.447 1.394c-.16.16-.295.295-.605.295l.213-3.053 5.56-5.023c.242-.213-.054-.333-.373-.12l-6.871 4.326-2.962-.924c-.643-.204-.657-.643.136-.953l11.57-4.461c.537-.194 1.006.131.833.941z"/></svg>
+            </div>
+            <div className="min-w-0">
+              <p className="text-white text-sm font-semibold leading-tight">Подпишись на наш канал</p>
+              <p className="text-white/40 text-xs">и получи {tgBonus} 🌸 в подарок</p>
+            </div>
+          </div>
+          {tgBonusGiven ? (
+            <div className="flex items-center justify-center gap-2 rounded-xl py-2.5 text-sm font-medium"
+              style={{ background: "rgba(74,222,128,0.12)", color: "#4ade80" }}>
+              <Icon name="CheckCircle2" size={15} /> Бонус получен
+            </div>
+          ) : (
+            <div className="flex gap-2">
+              <a href="https://t.me/+bqh8MPqEcIliZDYy" target="_blank" rel="noopener noreferrer"
+                onClick={() => setTgVisited(true)}
+                className="flex-1 rounded-xl py-2.5 text-sm font-medium text-white flex items-center justify-center gap-1.5"
+                style={{ background: "#229ED9" }}>
+                <Icon name="ExternalLink" size={14} /> Открыть канал
+              </a>
+              <button onClick={claimTg} disabled={!tgVisited}
+                className="flex-1 rounded-xl py-2.5 text-sm font-medium text-white disabled:opacity-40"
+                style={{ background: "var(--grad-main)" }}>
+                Я подписался
+              </button>
+            </div>
+          )}
+          {tgMsg && (
+            <p className="text-xs text-center mt-2" style={{ color: tgMsg.includes("Начислено") ? "#4ade80" : "#fbbf24" }}>{tgMsg}</p>
           )}
         </div>
 

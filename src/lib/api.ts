@@ -251,6 +251,8 @@ export const coinsApi = {
     req(`${URLS.coins}/?action=spend`, { method: "POST", body: JSON.stringify({ action: "spend", kind, bouquet_id }) }),
   vkSubscribe: () =>
     req(`${URLS.coins}/?action=vk_subscribe`, { method: "POST", body: JSON.stringify({ action: "vk_subscribe" }) }),
+  tgSubscribe: () =>
+    req(`${URLS.coins}/?action=tg_subscribe`, { method: "POST", body: JSON.stringify({ action: "tg_subscribe" }) }),
 };
 
 // ARTICLES (статьи)

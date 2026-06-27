@@ -32,9 +32,11 @@ EARN_RULES = {
     "review":         {"amount": 10,  "reason": "Оставлен отзыв"},
     "referral_join":  {"amount": 30,  "reason": "Приглашённый друг зарегистрировался"},
     "vk_subscribe":   {"amount": 40,  "reason": "Подписка на группу ВКонтакте"},
+    "tg_subscribe":   {"amount": 40,  "reason": "Подписка на Telegram-канал"},
 }
 
 VK_BONUS = 40
+TG_BONUS = 40
 
 
 def get_conn():
@@ -46,7 +48,7 @@ def get_user(conn, token: str):
         return None
     with conn.cursor() as cur:
         cur.execute(
-            f"SELECT u.id, u.name, u.coins, u.coins_welcome_given, u.vk_bonus_given "
+            f"SELECT u.id, u.name, u.coins, u.coins_welcome_given, u.vk_bonus_given, u.tg_bonus_given "
             f"FROM {SCHEMA}.sessions s JOIN {SCHEMA}.users u ON u.id = s.user_id "
             f"WHERE s.token = %s AND s.expires_at > NOW()", (token,)
         )
@@ -54,7 +56,7 @@ def get_user(conn, token: str):
     if not row:
         return None
     return {"id": row[0], "name": row[1], "coins": int(row[2]),
-            "welcome_given": bool(row[3]), "vk_bonus_given": bool(row[4])}
+            "welcome_given": bool(row[3]), "vk_bonus_given": bool(row[4]), "tg_bonus_given": bool(row[5])}
 
 
 def add_coins(conn, user_id: int, amount: int, ttype: str, reason: str, ref_id=None) -> int:
@@ -108,7 +110,8 @@ def handler(event: dict, context) -> dict:
                     conn.commit()
                     user["coins"] = new_bal
             return resp(200, {"coins": user["coins"], "spend_options": SPEND,
-                              "vk_bonus_given": user["vk_bonus_given"], "vk_bonus": VK_BONUS})
+                              "vk_bonus_given": user["vk_bonus_given"], "vk_bonus": VK_BONUS,
+                              "tg_bonus_given": user["tg_bonus_given"], "tg_bonus": TG_BONUS})
 
         # Бонус за подписку на группу ВКонтакте (один раз)
         if action == "vk_subscribe":
@@ -126,6 +129,23 @@ def handler(event: dict, context) -> dict:
             new_bal = add_coins(conn, user["id"], VK_BONUS, "vk_subscribe", EARN_RULES["vk_subscribe"]["reason"])
             conn.commit()
             return resp(200, {"ok": True, "coins": new_bal, "earned": VK_BONUS})
+
+        # Бонус за подписку на Telegram-канал (один раз)
+        if action == "tg_subscribe":
+            if user["tg_bonus_given"]:
+                return resp(200, {"ok": False, "already": True, "coins": user["coins"],
+                                  "message": "Бонус за подписку уже получен"})
+            with conn.cursor() as cur:
+                cur.execute(
+                    f"UPDATE {SCHEMA}.users SET tg_bonus_given = TRUE WHERE id = %s AND tg_bonus_given = FALSE RETURNING id",
+                    (user["id"],)
+                )
+                given = cur.fetchone()
+            if not given:
+                return resp(200, {"ok": False, "already": True, "coins": user["coins"]})
+            new_bal = add_coins(conn, user["id"], TG_BONUS, "tg_subscribe", EARN_RULES["tg_subscribe"]["reason"])
+            conn.commit()
+            return resp(200, {"ok": True, "coins": new_bal, "earned": TG_BONUS})
 
         # История транзакций
         if action == "history":
