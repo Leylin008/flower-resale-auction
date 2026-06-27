@@ -5195,6 +5195,18 @@ export default function Index() {
           <span className="text-white font-bold text-lg">VK</span>
         </a>
       )}
+
+      {/* Плавающая кнопка Telegram-канала — над кнопкой VK */}
+      {user && (
+        <a href="https://t.me/+bqh8MPqEcIliZDYy" target="_blank" rel="noopener noreferrer"
+          className="fixed bottom-[16.5rem] right-4 z-50 w-14 h-14 rounded-full flex items-center justify-center shadow-lg animate-fade-in-up"
+          style={{ background: "#229ED9", boxShadow: "0 8px 24px rgba(34,158,217,0.45)" }}
+          aria-label="Наш Telegram-канал" title="Подписаться на Telegram-канал FlowerFlip">
+          <svg viewBox="0 0 24 24" width="26" height="26" fill="white" xmlns="http://www.w3.org/2000/svg">
+            <path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm5.894 8.221-1.97 9.28c-.145.658-.537.818-1.084.508l-3-2.21-1.447 1.394c-.16.16-.295.295-.605.295l.213-3.053 5.56-5.023c.242-.213-.054-.333-.373-.12l-6.871 4.326-2.962-.924c-.643-.204-.657-.643.136-.953l11.57-4.461c.537-.194 1.006.131.833.941z"/>
+          </svg>
+        </a>
+      )}
     </div>
   );
 }
