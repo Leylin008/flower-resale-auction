@@ -5243,9 +5243,9 @@ export default function Index() {
         />
       )}
 
-      {/* Плавающая кнопка VK-группы — над значком AI-консультанта */}
+      {/* Плавающая кнопка VK-группы */}
       <a href="https://vk.com/flowerflip" target="_blank" rel="noopener noreferrer"
-        className="fixed bottom-44 right-4 z-50 w-14 h-14 rounded-full flex items-center justify-center shadow-lg animate-fade-in-up"
+        className="fixed bottom-24 left-4 z-50 w-14 h-14 rounded-full flex items-center justify-center shadow-lg animate-fade-in-up"
         style={{ background: "#2787F5", boxShadow: "0 8px 24px rgba(39,135,245,0.45)" }}
         aria-label="Наша группа ВКонтакте" title="Мы ВКонтакте — подпишись и получи 🌸">
         <span className="text-white font-bold text-lg">VK</span>
@@ -5253,7 +5253,7 @@ export default function Index() {
 
       {/* Плавающая кнопка Telegram-канала — над кнопкой VK */}
       <a href="https://t.me/+bqh8MPqEcIliZDYy" target="_blank" rel="noopener noreferrer"
-        className="fixed bottom-[16.5rem] right-4 z-50 w-14 h-14 rounded-full flex items-center justify-center shadow-lg animate-fade-in-up"
+        className="fixed bottom-44 left-4 z-50 w-14 h-14 rounded-full flex items-center justify-center shadow-lg animate-fade-in-up"
         style={{ background: "#229ED9", boxShadow: "0 8px 24px rgba(34,158,217,0.45)" }}
         aria-label="Наш Telegram-канал" title="Подписаться на Telegram-канал FlowerFlip">
         <svg viewBox="0 0 24 24" width="26" height="26" fill="white" xmlns="http://www.w3.org/2000/svg">

@@ -59,7 +59,7 @@ export default function AiConsultant({ city, onOpenBouquet }: Props) {
       )}
 
       {open && (
-        <div className="fixed bottom-24 right-4 z-50 w-[calc(100vw-2rem)] max-w-sm flex flex-col rounded-2xl overflow-hidden animate-fade-in-up"
+        <div className="fixed bottom-24 right-4 z-[60] w-[calc(100vw-2rem)] max-w-sm flex flex-col rounded-2xl overflow-hidden animate-fade-in-up"
           style={{ height: "min(70vh, 540px)", background: "rgba(20,18,28,0.97)", border: "1px solid rgba(255,255,255,0.1)", backdropFilter: "blur(20px)" }}>
           <div className="flex items-center gap-2 px-4 py-3 flex-shrink-0" style={{ background: "var(--grad-main)" }}>
             <Icon name="Sparkles" size={18} className="text-white" />
