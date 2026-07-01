@@ -137,17 +137,44 @@ const NEGOTIATION_PATHS = [
   },
 ];
 
+const PROPOSAL_SUBJECT = "Инвестиционное предложение — FlowerFlip (маркетплейс цветов, Seed-раунд)";
+
+const PROPOSAL_BODY = `Добрый день!
+
+Меня зовут [Имя], я основатель FlowerFlip — первого в России B2C-маркетплейса живых цветов с аукционной механикой и встроенным эскроу.
+
+Коротко о нас:
+• Платформа: flowerflip.ru — онлайн-аукционы и фиксированные продажи букетов напрямую от флористов
+• Модель: комиссия 15% с каждой сделки + эквайринг, рекламные баннеры
+• Стадия: MVP запущен, первые продажи, целевой раунд Seed
+• Запрос: 60 млн ₽ за 25% (оценка pre-money 180 млн ₽)
+• Использование: масштабирование в 10+ городов, команда, маркетинг
+
+Почему сейчас:
+Рынок срезанных цветов РФ — 180 млрд ₽/год, полностью офлайн и без прозрачного ценообразования. FlowerFlip решает это через цифровой аукцион и защищённые сделки.
+
+Целевой выход: IPO или продажа стратегу (Яндекс.Маркет, Сбер, VK) через 4–6 лет с оценкой 8–60 млрд ₽.
+
+Готов прислать полный питч-дек, финансовую модель и договориться о встрече в удобное время.
+
+С уважением,
+[Имя Фамилия]
+Основатель FlowerFlip
+flowerflip@flowerflip.ru
++7 (___) ___-__-__
+https://flowerflip.ru`;
+
 const INVESTORS = [
-  { name: "AltaIR Capital", focus: "Маркетплейсы, потребительские платформы", icon: "Building2" },
-  { name: "Kama Flow", focus: "Российский венчур, ранние стадии", icon: "Building2" },
-  { name: "Day One Ventures / s16vc", focus: "Стартапы с быстрым ростом", icon: "Building2" },
-  { name: "Восход (Сибур / Интеррос)", focus: "Технологические компании РФ", icon: "Building2" },
-  { name: "ФРИИ (Фонд развития интернет-инициатив)", focus: "Ранние раунды, акселерация", icon: "Building2" },
-  { name: "Сбер / SberX", focus: "Финтех, эквайринг, экосистема", icon: "Building2" },
-  { name: "VK Ventures", focus: "Соцплатформы, контент, реклама", icon: "Building2" },
-  { name: "Яндекс (M&A / Яндекс.Маркет)", focus: "Маркетплейсы, логистика", icon: "Building2" },
-  { name: "МТС Венчурный фонд", focus: "Цифровые сервисы, экосистема", icon: "Building2" },
-  { name: "Бизнес-ангелы (AngelsDeck, СОБА)", focus: "Частные инвесторы, ранние чеки", icon: "Building2" },
+  { name: "AltaIR Capital", focus: "Маркетплейсы, потребительские платформы", icon: "Building2", email: "info@altair.vc", note: "Фокус на consumer internet, маркетплейсы — прямое попадание в тезис фонда." },
+  { name: "Kama Flow", focus: "Российский венчур, ранние стадии", icon: "Building2", email: "hello@kamaflow.com", note: "Инвестируют на pre-seed и seed, поддерживают основателей операционно." },
+  { name: "Day One Ventures / s16vc", focus: "Стартапы с быстрым ростом", icon: "Building2", email: "pitch@dayoneventures.com", note: "Любят компании с нестандартной механикой и быстрым product-market fit." },
+  { name: "Восход (Сибур / Интеррос)", focus: "Технологические компании РФ", icon: "Building2", email: "ventures@voskhod.vc", note: "Государственно-частный фонд, акцент на масштабируемые tech-платформы РФ." },
+  { name: "ФРИИ", focus: "Ранние раунды, акселерация", icon: "Building2", email: "start@iidf.ru", note: "Крупнейший акселератор РФ. Дают деньги + трекинг + сеть партнёров." },
+  { name: "Сбер / SberX", focus: "Финтех, эквайринг, экосистема", icon: "Building2", email: "sberx@sber.ru", note: "Синергия с СберПэй и эквайрингом Сбера — стратегический партнёр." },
+  { name: "VK Ventures", focus: "Соцплатформы, контент, реклама", icon: "Building2", email: "ventures@vk.com", note: "Уже работаем с VK-рекламой. Совместный рост аудитории через VK-экосистему." },
+  { name: "Яндекс (M&A / Яндекс.Маркет)", focus: "Маркетплейсы, логистика", icon: "Building2", email: "ma@yandex-team.ru", note: "Потенциальный стратегический покупатель. Интеграция с Яндекс.Маркетом." },
+  { name: "МТС Венчурный фонд", focus: "Цифровые сервисы, экосистема", icon: "Building2", email: "mts_venture@mts.ru", note: "Инвестируют в digital-платформы с растущей базой пользователей." },
+  { name: "Бизнес-ангелы (AngelsDeck, СОБА)", focus: "Частные инвесторы, ранние чеки", icon: "Users", email: "hello@angelsdeck.com", note: "Быстрые решения, чеки 3–15 млн ₽. Идеально для закрытия первого раунда." },
 ];
 
 /* ─── КОМПОНЕНТЫ ─────────────────────────────────────────── */
@@ -475,21 +502,44 @@ export default function Investor() {
 
         {/* 9. ПОТЕНЦИАЛЬНЫЕ ИНВЕСТОРЫ */}
         <Section icon="Landmark" title="Компании и фонды для привлечения">
-          <div className="grid grid-cols-1 gap-2">
+          <div className="grid grid-cols-1 gap-3">
             {INVESTORS.map(inv => (
               <Card key={inv.name}>
-                <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0" style={{ background: "rgba(168,85,247,0.12)" }}>
+                <div className="flex items-start gap-3 mb-2.5">
+                  <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 mt-0.5" style={{ background: "rgba(168,85,247,0.12)" }}>
                     <Icon name={inv.icon} size={17} style={{ color: "#a855f7" }} />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-white text-sm font-medium">{inv.name}</p>
-                    <p className="text-white/40 text-xs">{inv.focus}</p>
+                    <p className="text-white text-sm font-semibold leading-tight">{inv.name}</p>
+                    <p className="text-white/40 text-xs mt-0.5">{inv.focus}</p>
                   </div>
+                </div>
+                <p className="text-white/55 text-xs leading-relaxed mb-3">{inv.note}</p>
+                <div className="flex items-center gap-2">
+                  <a href={`mailto:${inv.email}?subject=${encodeURIComponent(PROPOSAL_SUBJECT)}&body=${encodeURIComponent(PROPOSAL_BODY)}`}
+                    className="flex-1 flex items-center justify-center gap-1.5 rounded-xl py-2 text-xs font-medium text-white transition-all"
+                    style={{ background: "rgba(168,85,247,0.18)", border: "1px solid rgba(168,85,247,0.3)" }}>
+                    <Icon name="Send" size={13} style={{ color: "#a855f7" }} />
+                    Отправить предложение
+                  </a>
+                  <a href={`mailto:${inv.email}`}
+                    className="flex items-center gap-1 rounded-xl px-3 py-2 text-xs font-medium transition-all"
+                    style={{ background: "rgba(255,255,255,0.05)", color: "rgba(255,255,255,0.4)", border: "1px solid rgba(255,255,255,0.08)" }}>
+                    <Icon name="Mail" size={13} />
+                    {inv.email}
+                  </a>
                 </div>
               </Card>
             ))}
           </div>
+          <Card className="mt-2">
+            <div className="flex items-start gap-2">
+              <Icon name="Info" size={14} className="text-yellow-400 shrink-0 mt-0.5" />
+              <p className="text-white/50 text-xs leading-relaxed">
+                Кнопка «Отправить предложение» открывает ваш почтовый клиент с готовым письмом. Замените <b className="text-white/70">[Имя]</b> и <b className="text-white/70">[Имя Фамилия]</b> на свои данные перед отправкой.
+              </p>
+            </div>
+          </Card>
         </Section>
 
         {/* 10. ПРЕДЛОЖЕНИЕ ИНВЕСТОРУ */}
