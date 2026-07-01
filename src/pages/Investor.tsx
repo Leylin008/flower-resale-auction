@@ -165,17 +165,24 @@ flowerflip@flowerflip.ru
 https://flowerflip.ru`;
 
 const INVESTORS = [
-  { name: "AltaIR Capital", focus: "Маркетплейсы, потребительские платформы", icon: "Building2", email: "info@altair.vc", note: "Фокус на consumer internet, маркетплейсы — прямое попадание в тезис фонда." },
-  { name: "Kama Flow", focus: "Российский венчур, ранние стадии", icon: "Building2", email: "hello@kamaflow.com", note: "Инвестируют на pre-seed и seed, поддерживают основателей операционно." },
-  { name: "Day One Ventures / s16vc", focus: "Стартапы с быстрым ростом", icon: "Building2", email: "pitch@dayoneventures.com", note: "Любят компании с нестандартной механикой и быстрым product-market fit." },
-  { name: "Восход (Сибур / Интеррос)", focus: "Технологические компании РФ", icon: "Building2", email: "ventures@voskhod.vc", note: "Государственно-частный фонд, акцент на масштабируемые tech-платформы РФ." },
-  { name: "ФРИИ", focus: "Ранние раунды, акселерация", icon: "Building2", email: "start@iidf.ru", note: "Крупнейший акселератор РФ. Дают деньги + трекинг + сеть партнёров." },
-  { name: "Сбер / SberX", focus: "Финтех, эквайринг, экосистема", icon: "Building2", email: "sberx@sber.ru", note: "Синергия с СберПэй и эквайрингом Сбера — стратегический партнёр." },
-  { name: "VK Ventures", focus: "Соцплатформы, контент, реклама", icon: "Building2", email: "ventures@vk.com", note: "Уже работаем с VK-рекламой. Совместный рост аудитории через VK-экосистему." },
-  { name: "Яндекс (M&A / Яндекс.Маркет)", focus: "Маркетплейсы, логистика", icon: "Building2", email: "ma@yandex-team.ru", note: "Потенциальный стратегический покупатель. Интеграция с Яндекс.Маркетом." },
-  { name: "МТС Венчурный фонд", focus: "Цифровые сервисы, экосистема", icon: "Building2", email: "mts_venture@mts.ru", note: "Инвестируют в digital-платформы с растущей базой пользователей." },
-  { name: "Бизнес-ангелы (AngelsDeck, СОБА)", focus: "Частные инвесторы, ранние чеки", icon: "Users", email: "hello@angelsdeck.com", note: "Быстрые решения, чеки 3–15 млн ₽. Идеально для закрытия первого раунда." },
-  { name: "Оскар Хартманн", focus: "ТОП-18 бизнес-ангелов мира, маркетплейсы, consumer", icon: "Star", email: "irina@hartmann.holdings", note: "Основатель KupiVIP, Carprice, Aktivo. Инвестировал в десятки единорогов. Ведёт «Арену Единорогов» — шоу для стартапов. Идеальный ментор и первый ангел для FlowerFlip." },
+  // ── ВОЛНА 1: Быстрые ангелы — решение за 1–2 недели ──
+  { wave: 1, waveLabel: "Волна 1 — Быстрые ангелы", name: "Оскар Хартманн", focus: "ТОП-18 бизнес-ангелов мира, маркетплейсы, consumer", icon: "Star", email: "irina@hartmann.holdings", note: "Строил KupiVIP и Carprice — точно такую же модель маркетплейса. Понимает рынок с полуслова. Ведёт «Арену Единорогов» — можно попасть на шоу и получить инвестиции публично. Приоритет №1." },
+  { wave: 1, waveLabel: "", name: "Бизнес-ангелы (AngelsDeck, СОБА)", focus: "Частные инвесторы, ранние чеки", icon: "Users", email: "hello@angelsdeck.com", note: "Платформа объединяет 500+ ангелов РФ. Можно закрыть первые 10–20 млн ₽ быстро, без длинных переговоров. Хорошо для старта раунда." },
+
+  // ── ВОЛНА 2: Венчурные фонды ранних стадий — 3–6 недель ──
+  { wave: 2, waveLabel: "Волна 2 — Венчурные фонды ранних стадий", name: "ФРИИ", focus: "Ранние раунды, акселерация", icon: "Building2", email: "start@iidf.ru", note: "Крупнейший акселератор РФ с государственной поддержкой. Дают 3–20 млн ₽ + трекинг + огромную сеть партнёров и клиентов. Идеально для валидации модели." },
+  { wave: 2, waveLabel: "", name: "Kama Flow", focus: "Российский венчур, ранние стадии", icon: "Building2", email: "hello@kamaflow.com", note: "Один из немногих фондов РФ, которые реально помогают операционно на seed-стадии. Тикет 20–60 млн ₽, быстрый процесс." },
+  { wave: 2, waveLabel: "", name: "AltaIR Capital", focus: "Маркетплейсы, потребительские платформы", icon: "Building2", email: "info@altair.vc", note: "Специализация — consumer internet и маркетплейсы. FlowerFlip попадает точно в тезис фонда. Один из самых активных венчурных фондов РФ." },
+  { wave: 2, waveLabel: "", name: "Day One Ventures / s16vc", focus: "Стартапы с быстрым ростом", icon: "Building2", email: "pitch@dayoneventures.com", note: "Любят нестандартные механики (аукцион + эскроу — как раз это). Быстро принимают решения, помогают с выходом на международные рынки." },
+
+  // ── ВОЛНА 3: Корпоративные фонды — 1–3 месяца ──
+  { wave: 3, waveLabel: "Волна 3 — Корпоративные фонды", name: "Восход (Сибур / Интеррос)", focus: "Технологические компании РФ", icon: "Building2", email: "ventures@voskhod.vc", note: "Государственно-частный фонд с большими чеками (от 100 млн ₽). Длинный процесс согласования, но мощный ресурс и лоббирование." },
+  { wave: 3, waveLabel: "", name: "МТС Венчурный фонд", focus: "Цифровые сервисы, экосистема", icon: "Building2", email: "mts_venture@mts.ru", note: "Инвестируют в платформы с растущей базой пользователей. Могут дать доступ к 80+ млн абонентов МТС как каналу привлечения." },
+
+  // ── ВОЛНА 4: Стратеги — только при наличии метрик ──
+  { wave: 4, waveLabel: "Волна 4 — Стратеги (после первых метрик)", name: "Сбер / SberX", focus: "Финтех, эквайринг, экосистема", icon: "Building2", email: "sberx@sber.ru", note: "Идеальный стратег: интеграция с СберПэй снимет проблему эквайринга. Но Сбер заходит только при доказанной тяге — нужны 1000+ сделок/мес." },
+  { wave: 4, waveLabel: "", name: "VK Ventures", focus: "Соцплатформы, контент, реклама", icon: "Building2", email: "ventures@vk.com", note: "Синергия очевидна: VK-аудитория + наш маркетплейс. Но VK медленно принимает решения. Имеет смысл после роста до 5+ городов." },
+  { wave: 4, waveLabel: "", name: "Яндекс (M&A / Яндекс.Маркет)", focus: "Маркетплейсы, логистика", icon: "Building2", email: "ma@yandex-team.ru", note: "Потенциальный покупатель всего бизнеса, не просто инвестор. Выходить на Яндекс имеет смысл на Series A с оценкой 1+ млрд ₽." },
 ];
 
 /* ─── КОМПОНЕНТЫ ─────────────────────────────────────────── */
@@ -503,44 +510,74 @@ export default function Investor() {
 
         {/* 9. ПОТЕНЦИАЛЬНЫЕ ИНВЕСТОРЫ */}
         <Section icon="Landmark" title="Компании и фонды для привлечения">
-          <div className="grid grid-cols-1 gap-3">
-            {INVESTORS.map(inv => (
-              <Card key={inv.name}>
-                <div className="flex items-start gap-3 mb-2.5">
-                  <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 mt-0.5" style={{ background: "rgba(168,85,247,0.12)" }}>
-                    <Icon name={inv.icon} size={17} style={{ color: "#a855f7" }} />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-white text-sm font-semibold leading-tight">{inv.name}</p>
-                    <p className="text-white/40 text-xs mt-0.5">{inv.focus}</p>
-                  </div>
-                </div>
-                <p className="text-white/55 text-xs leading-relaxed mb-3">{inv.note}</p>
-                <div className="flex items-center gap-2">
-                  <a href={`mailto:${inv.email}?subject=${encodeURIComponent(PROPOSAL_SUBJECT)}&body=${encodeURIComponent(PROPOSAL_BODY)}`}
-                    className="flex-1 flex items-center justify-center gap-1.5 rounded-xl py-2 text-xs font-medium text-white transition-all"
-                    style={{ background: "rgba(168,85,247,0.18)", border: "1px solid rgba(168,85,247,0.3)" }}>
-                    <Icon name="Send" size={13} style={{ color: "#a855f7" }} />
-                    Отправить предложение
-                  </a>
-                  <a href={`mailto:${inv.email}`}
-                    className="flex items-center gap-1 rounded-xl px-3 py-2 text-xs font-medium transition-all"
-                    style={{ background: "rgba(255,255,255,0.05)", color: "rgba(255,255,255,0.4)", border: "1px solid rgba(255,255,255,0.08)" }}>
-                    <Icon name="Mail" size={13} />
-                    {inv.email}
-                  </a>
-                </div>
-              </Card>
-            ))}
+          {(() => {
+            const WAVE_COLORS: Record<number, { bg: string; border: string; text: string; badge: string }> = {
+              1: { bg: "rgba(255,61,139,0.08)", border: "rgba(255,61,139,0.25)", text: "#ff3d8b", badge: "rgba(255,61,139,0.18)" },
+              2: { bg: "rgba(168,85,247,0.08)", border: "rgba(168,85,247,0.25)", text: "#a855f7", badge: "rgba(168,85,247,0.18)" },
+              3: { bg: "rgba(6,214,222,0.08)", border: "rgba(6,214,222,0.25)", text: "#06d6de", badge: "rgba(6,214,222,0.18)" },
+              4: { bg: "rgba(255,255,255,0.04)", border: "rgba(255,255,255,0.1)", text: "rgba(255,255,255,0.4)", badge: "rgba(255,255,255,0.08)" },
+            };
+            const WAVE_ICONS: Record<number, string> = { 1: "Zap", 2: "TrendingUp", 3: "Building", 4: "Target" };
+            const WAVE_TIMING: Record<number, string> = { 1: "решение за 1–2 нед", 2: "3–6 недель", 3: "1–3 месяца", 4: "только с метриками" };
+            let lastWave = 0;
+            return (
+              <div className="space-y-2">
+                {INVESTORS.map((inv, idx) => {
+                  const c = WAVE_COLORS[inv.wave];
+                  const showHeader = inv.waveLabel !== "";
+                  lastWave = inv.wave;
+                  return (
+                    <div key={inv.name}>
+                      {showHeader && (
+                        <div className={`flex items-center gap-2 mb-2 ${idx > 0 ? "mt-5" : ""}`}>
+                          <div className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0" style={{ background: c.badge }}>
+                            <Icon name={WAVE_ICONS[inv.wave]} size={14} style={{ color: c.text }} />
+                          </div>
+                          <div>
+                            <p className="text-sm font-semibold" style={{ color: c.text }}>{inv.waveLabel}</p>
+                            <p className="text-white/30 text-[11px]">{WAVE_TIMING[inv.wave]}</p>
+                          </div>
+                        </div>
+                      )}
+                      <div className="rounded-2xl p-4" style={{ background: c.bg, border: `1px solid ${c.border}` }}>
+                        <div className="flex items-start gap-3 mb-2">
+                          <div className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0 mt-0.5" style={{ background: c.badge }}>
+                            <Icon name={inv.icon} size={15} style={{ color: c.text }} />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-white text-sm font-semibold leading-tight">{inv.name}</p>
+                            <p className="text-white/40 text-xs mt-0.5">{inv.focus}</p>
+                          </div>
+                          <span className="text-[10px] font-medium px-2 py-0.5 rounded-full shrink-0" style={{ background: c.badge, color: c.text }}>#{INVESTORS.filter(i => i.wave === inv.wave).findIndex(i => i.name === inv.name) + 1 + INVESTORS.filter(i => i.wave < inv.wave).length}</span>
+                        </div>
+                        <p className="text-white/55 text-xs leading-relaxed mb-3">{inv.note}</p>
+                        <div className="flex flex-col gap-1.5">
+                          <a href={`mailto:${inv.email}?subject=${encodeURIComponent(PROPOSAL_SUBJECT)}&body=${encodeURIComponent(PROPOSAL_BODY)}`}
+                            className="flex items-center justify-center gap-1.5 rounded-xl py-2 text-xs font-medium text-white"
+                            style={{ background: c.badge, border: `1px solid ${c.border}` }}>
+                            <Icon name="Send" size={13} style={{ color: c.text }} />
+                            Отправить предложение
+                          </a>
+                          <a href={`mailto:${inv.email}`}
+                            className="flex items-center justify-center gap-1 rounded-xl py-1.5 text-[11px]"
+                            style={{ color: "rgba(255,255,255,0.35)" }}>
+                            <Icon name="Mail" size={11} />
+                            {inv.email}
+                          </a>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          })()}
+          <div className="rounded-2xl p-3 mt-3 flex items-start gap-2" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}>
+            <Icon name="Info" size={14} className="text-yellow-400 shrink-0 mt-0.5" />
+            <p className="text-white/45 text-xs leading-relaxed">
+              Кнопка «Отправить предложение» открывает почтовый клиент с готовым письмом. Замените <b className="text-white/60">[Имя]</b> на свои данные перед отправкой.
+            </p>
           </div>
-          <Card className="mt-2">
-            <div className="flex items-start gap-2">
-              <Icon name="Info" size={14} className="text-yellow-400 shrink-0 mt-0.5" />
-              <p className="text-white/50 text-xs leading-relaxed">
-                Кнопка «Отправить предложение» открывает ваш почтовый клиент с готовым письмом. Замените <b className="text-white/70">[Имя]</b> и <b className="text-white/70">[Имя Фамилия]</b> на свои данные перед отправкой.
-              </p>
-            </div>
-          </Card>
         </Section>
 
         {/* 10. ПРЕДЛОЖЕНИЕ ИНВЕСТОРУ */}
